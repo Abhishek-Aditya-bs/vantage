@@ -195,18 +195,19 @@ function SpaceReady({
         <span className="text-foreground">{formatCode(result.space.code)}</span>
       </p>
 
-      <div className="mt-6 grid grid-cols-1 items-center gap-6 sm:grid-cols-[auto_1fr]">
+      <div className="mt-6 grid grid-cols-1 items-center gap-6 sm:grid-cols-[auto_1fr] min-w-0">
         <QrCode value={result.joinUrl} size={168} />
-        <div className="space-y-3">
-          <div>
+        <div className="min-w-0 space-y-3">
+          <div className="min-w-0">
             <Label className="mb-1.5 block">share this link</Label>
-            <div className="flex items-stretch gap-2">
-              <code className="flex-1 truncate rounded-md border border-border bg-background px-3 py-2 font-mono text-xs">
+            <div className="flex min-w-0 items-stretch gap-2">
+              <code className="min-w-0 flex-1 truncate rounded-md border border-border bg-background px-3 py-2 font-mono text-xs">
                 {result.joinUrl}
               </code>
               <Button
                 variant="outline"
                 size="icon"
+                className="shrink-0"
                 onClick={copy}
                 aria-label="Copy join link"
               >

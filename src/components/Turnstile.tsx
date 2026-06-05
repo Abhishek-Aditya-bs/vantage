@@ -6,10 +6,16 @@
  * - If the script/global is absent (dev), it reports "ready with no token" so
  *   the parent form can submit anyway (a documented dev fallback).
  * - Re-renders cleanly on theme change by reading the resolved theme.
+ * - When the configured site key is Cloudflare's always-passing test key or is
+ *   absent, the component renders nothing — the server fails-open and the
+ *   "For testing only" banner is suppressed.
  */
 import { useEffect, useId, useRef, useState } from "react";
 import { turnstileSiteKey } from "@/lib/config";
 import { useTheme } from "@/providers/ThemeProvider";
+
+/** Cloudflare's publicly-known always-passing test site key. */
+const TURNSTILE_TEST_KEY = "1x00000000000000000000AA";
 
 interface TurnstileProps {
   /** called with a token (real Turnstile) or null (dev fallback / reset) */
@@ -18,6 +24,40 @@ interface TurnstileProps {
 }
 
 export function Turnstile({ onToken, className }: TurnstileProps) {
+  const siteKey = turnstileSiteKey();
+  const isTestOrMissing = !siteKey || siteKey === TURNSTILE_TEST_KEY;
+
+  if (isTestOrMissing) {
+    return <TurnstileNoop onToken={onToken} />;
+  }
+
+  return <TurnstileWidget siteKey={siteKey} onToken={onToken} className={className} />;
+}
+
+/**
+ * When no real key is configured the server fails-open — just fire null once
+ * and render nothing (avoids the "For testing only" banner).
+ */
+function TurnstileNoop({ onToken }: { onToken: (token: string | null) => void }) {
+  useEffect(() => {
+    onToken(null);
+    // Fire once on mount; intentionally omit onToken from deps to avoid
+    // infinite re-fires if the parent passes an inline arrow function.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return null;
+}
+
+/** Full widget — only rendered when a real (non-test) site key is present. */
+function TurnstileWidget({
+  siteKey,
+  onToken,
+  className,
+}: {
+  siteKey: string;
+  onToken: (token: string | null) => void;
+  className?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const widgetId = useRef<string | null>(null);
   const reactId = useId();
@@ -39,7 +79,7 @@ export function Turnstile({ onToken, className }: TurnstileProps) {
       if (ts && el) {
         try {
           widgetId.current = ts.render(el, {
-            sitekey: turnstileSiteKey(),
+            sitekey: siteKey,
             theme,
             callback: (token) => onToken(token),
             "error-callback": () => onToken(null),
