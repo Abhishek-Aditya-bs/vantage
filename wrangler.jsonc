@@ -1,0 +1,52 @@
+{
+  // Vantage — full-stack Cloudflare Worker: React SPA assets + Hono API + Durable Objects.
+  // Media is stored in the per-space Durable Object's SQLite by default (STORAGE_MODE=do),
+  // so the app runs on the pure free tier with NO R2 and NO payment method required.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vantage",
+  "main": "./worker/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Static SPA assets. Unknown non-API paths fall back to index.html (client-side routing).
+  "assets": {
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  "observability": { "enabled": true },
+
+  // Public, non-secret config. Secrets (JWT_SECRET, TURNSTILE_SECRET) come from `wrangler secret`.
+  "vars": {
+    "APP_NAME": "Vantage",
+    "RENDER_MODE": "client", // client (free, on-device WebCodecs) | server (Phase-2 $5 container)
+    "STORAGE_MODE": "do", // do (free, DO SQLite) | r2 (optional upgrade once R2 enabled)
+    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA" // Cloudflare test key; replace at deploy
+  },
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "SPACE_ROOM", "class_name": "SpaceRoom" },
+      { "name": "RATE_LIMITER", "class_name": "RateLimiter" }
+    ]
+  },
+
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["SpaceRoom", "RateLimiter"] }
+  ],
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "vantage",
+      "database_id": "d81bb56c-142e-4a1d-a01a-7fc9c8814a8e"
+    }
+  ],
+
+  "kv_namespaces": [
+    { "binding": "KV", "id": "55d3b00d8bcb4959a016c83e84ba2cf1" }
+  ],
+
+  // Workers AI — used for optional image moderation within the 10k neurons/day free budget.
+  "ai": { "binding": "AI" }
+}
