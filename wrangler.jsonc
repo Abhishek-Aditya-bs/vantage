@@ -39,7 +39,8 @@
     {
       "binding": "DB",
       "database_name": "vantage",
-      "database_id": "d81bb56c-142e-4a1d-a01a-7fc9c8814a8e"
+      "database_id": "d81bb56c-142e-4a1d-a01a-7fc9c8814a8e",
+      "migrations_dir": "worker/db/migrations"
     }
   ],
 
@@ -48,5 +49,8 @@
   ],
 
   // Workers AI — used for optional image moderation within the 10k neurons/day free budget.
-  "ai": { "binding": "AI" }
+  "ai": { "binding": "AI" },
+
+  // Cron: nightly cleanup of inactive/expired spaces (frees DO storage). 1 of 5 free triggers.
+  "triggers": { "crons": ["0 3 * * *"] }
 }
