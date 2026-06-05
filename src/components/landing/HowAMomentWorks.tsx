@@ -56,7 +56,7 @@ export function HowAMomentWorks() {
     <div className="relative">
       {/* the three capturing phones */}
       <div className="grid grid-cols-3 gap-3 sm:gap-5">
-        {ANGLES.map((a, i) => (
+        {ANGLES.map((a) => (
           <div key={a.label} className="flex flex-col items-center gap-2">
             <PhoneFrame flash={flashing} tilt={a.tilt} className="max-w-[7.5rem]">
               {counting ? (
