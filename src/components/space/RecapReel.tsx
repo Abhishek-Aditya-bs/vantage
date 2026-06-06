@@ -1,19 +1,19 @@
 /**
- * Recap reel — NOT a plain slideshow. It segments the space into:
- *   • Moments  → played as BULLET-TIME (orbit the frozen instant; the unique bit)
+ * Recap reel — calm, not strobing. It segments the space into:
+ *   • Moments  → a held multi-angle "moment card" (every angle of one instant)
  *   • loose photos → a brief Ken-Burns montage
- * so the recap leads with the thing one camera can't do. Optional ambient pad,
- * and an "Export MP4" path (server render when enabled, else on-device).
+ * so the recap features the multi-angle moments without flashing. Optional
+ * ambient pad, and an "Export MP4" path (server render when enabled — the
+ * cinematic motion lives there — else an on-device fallback).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { X, Pause, Play, Volume2, VolumeX, Download, Rotate3d } from "lucide-react";
+import { X, Pause, Play, Volume2, VolumeX, Download, Aperture } from "lucide-react";
 import type { MediaMeta } from "@shared/protocol";
 import { api } from "@/lib/api";
 import { AsciiProgress } from "@/components/brand/AsciiProgress";
 import { Mascot } from "@/components/brand/Mascot";
-import { BulletTime } from "@/components/space/BulletTime";
 
 interface RecapReelProps {
   code: string;
@@ -27,7 +27,9 @@ type Segment =
   | { kind: "slide"; id: string; frame: MediaMeta; t: number };
 
 const SLIDE_MS = 2600;
-const MOMENT_MS = 5200;
+const MOMENT_MS = 4200;
+
+const momentCols = (n: number): number => (n <= 4 ? 2 : n <= 9 ? 3 : 4);
 
 export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
   // Build the segment timeline: multi-angle Moments become bullet-time; the rest
@@ -55,7 +57,6 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
   }, [media]);
 
   const [seg, setSeg] = useState(0);
-  const [orbit, setOrbit] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -64,12 +65,7 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
   const audioRef = useRef<{ ctx: AudioContext; stop: () => void } | null>(null);
   const current = segments[seg];
 
-  // reset the orbit index when the segment changes
-  useEffect(() => {
-    setOrbit(0);
-  }, [seg]);
-
-  // advance segments (Moments linger longer to let the orbit play)
+  // advance segments (Moments linger a touch longer so the angle grid reads)
   useEffect(() => {
     if (!playing || segments.length === 0) return;
     const dur = current?.kind === "moment" ? MOMENT_MS : SLIDE_MS;
@@ -146,16 +142,25 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
             <p className="font-mono text-sm">nothing to recap yet</p>
           </div>
         ) : current.kind === "moment" ? (
-          <div className="absolute inset-0">
-            <BulletTime
-              code={code}
-              frames={current.frames}
-              index={Math.min(orbit, current.frames.length - 1)}
-              onIndexChange={setOrbit}
-              playing={playing}
-              sweepMs={110}
-            />
-          </div>
+          // calm multi-angle "moment card": every angle of the instant at once
+          <motion.div
+            key={current.id}
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="absolute inset-0 grid place-items-center p-6 sm:p-10"
+          >
+            <div
+              className="grid w-full max-w-3xl gap-2"
+              style={{ gridTemplateColumns: `repeat(${momentCols(current.frames.length)}, minmax(0,1fr))` }}
+            >
+              {current.frames.slice(0, 9).map((m) => (
+                <div key={m.id} className="aspect-square overflow-hidden rounded-md border border-white/15">
+                  <img src={api.mediaUrl(code, m.id)} alt="" className="h-full w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          </motion.div>
         ) : (
           <AnimatePresence mode="popLayout">
             <motion.img
@@ -178,8 +183,8 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-6">
           {current?.kind === "moment" ? (
             <p className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.2em] text-moment">
-              <Rotate3d className="size-4" />
-              the moment · {current.frames.length} angles · bullet-time
+              <Aperture className="size-4" />
+              the moment · {current.frames.length} angles · one instant
             </p>
           ) : (
             <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
