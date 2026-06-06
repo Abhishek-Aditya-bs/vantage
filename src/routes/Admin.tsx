@@ -19,8 +19,6 @@ import {
   type AdminData,
 } from "@/lib/adminApi";
 
-const ADMIN_EMAIL = "abhishek.aditya10@gmail.com";
-
 function fmtBytes(n: number): string {
   if (!n) return "0 B";
   const u = ["B", "KB", "MB", "GB"];
@@ -41,7 +39,7 @@ export default function Admin() {
 
   // login
   const [step, setStep] = useState<"email" | "code">("email");
-  const [email, setEmail] = useState(ADMIN_EMAIL);
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [emailSent, setEmailSent] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -155,7 +153,8 @@ export default function Admin() {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    autoComplete="email"
+                    placeholder="you@email.com"
+                    autoComplete="off"
                     required
                   />
                 </div>

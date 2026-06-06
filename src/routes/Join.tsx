@@ -139,7 +139,7 @@ export default function Join() {
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                       maxLength={MAX_DISPLAY_NAME}
-                      placeholder="Tanvi"
+                      placeholder="Your name"
                       autoComplete="name"
                       required
                       autoFocus

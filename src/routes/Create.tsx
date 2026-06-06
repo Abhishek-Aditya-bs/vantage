@@ -102,7 +102,7 @@ export default function Create() {
                     value={spaceName}
                     onChange={(e) => setSpaceName(e.target.value)}
                     maxLength={MAX_SPACE_NAME}
-                    placeholder="Maya & Dev's wedding"
+                    placeholder="Rooftop party"
                     autoComplete="off"
                     required
                     autoFocus
@@ -115,7 +115,7 @@ export default function Create() {
                     value={hostName}
                     onChange={(e) => setHostName(e.target.value)}
                     maxLength={MAX_DISPLAY_NAME}
-                    placeholder="Abhishek"
+                    placeholder="Your name"
                     autoComplete="name"
                     required
                   />
