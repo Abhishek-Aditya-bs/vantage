@@ -18,6 +18,7 @@ import { FigSyncCapture } from "@/components/landing/figures/FigSyncCapture";
 import { FigAperture } from "@/components/landing/figures/FigAperture";
 import { FigLiveWall } from "@/components/landing/figures/FigLiveWall";
 import { FigArchitecture } from "@/components/landing/figures/FigArchitecture";
+import { SPACE_QUOTAS } from "@shared/constants";
 
 const reveal = {
   initial: { opacity: 0, y: 10 },
@@ -48,7 +49,7 @@ export default function Landing() {
               transition={{ duration: 0.5 }}
               className="font-mono text-[0.7rem] uppercase tracking-[0.28em] text-muted-foreground"
             >
-              Multi-angle capture · real-time · no app
+              Multi-angle capture · up to {SPACE_QUOTAS.maxMembers} phones · real-time
             </motion.p>
 
             <motion.h1
@@ -58,7 +59,7 @@ export default function Landing() {
               className="mt-5 font-display font-semibold leading-[0.92] tracking-[-0.035em]"
               style={{ fontSize: "clamp(2.85rem, 9vw, 6.5rem)" }}
             >
-              Three phones.
+              Every phone.
               <br />
               One instant.
             </motion.h1>

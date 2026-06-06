@@ -1,77 +1,79 @@
 /**
- * Pixel camera glyph — a boxy one-lens camera drawn as an SVG grid of <rect>s on
- * a 16×16 lattice. Strictly monochrome (foreground ink on the page background),
- * so it reads as a refined technical mark, not a toy. The iris periodically
- * blinks (a shutter) unless the user prefers reduced motion.
+ * Vantage mark — a precise, monochrome aperture glyph: a hex lens housing, six
+ * iris blades swept around a focal point. It rhymes with the blueprint figures
+ * (the FIG_003 iris, the FIG_001 convergence reticle) rather than a literal
+ * camera, so it reads as a technical instrument, not a toy. Pure currentColor
+ * strokes → it inverts cleanly between dark and light.
+ *
+ * Kept under the name `Mascot` so every call site (logo, empty states, loaders)
+ * picks up the new mark with no other changes. `still` freezes the idle spin.
  */
 import { useEffect, useState } from "react";
 
 interface MascotProps {
   size?: number;
-  /** disable the periodic shutter blink (e.g. inside the logo lockup) */
+  /** freeze the slow idle rotation (e.g. inside the logo lockup) */
   still?: boolean;
   className?: string;
   title?: string;
 }
 
-const CELL = 16; // 16x16 grid
-const U = 4; // unit size in viewBox space  -> 64x64 viewBox
+const VB = 32;
+const C = VB / 2;
+const R_HEX = 13; // lens-housing hexagon circumradius
+const R_OUT = 11; // blade outer radius
+const R_IN = 4.6; // blade inner radius (aperture opening)
+const SWEEP = 34; // degrees each blade is swept (the iris "twist")
 
-function px(x: number, y: number, w: number, h: number, fill: string, key: string) {
-  return <rect key={key} x={x * U} y={y * U} width={w * U} height={h * U} fill={fill} />;
-}
+const rad = (deg: number) => (deg * Math.PI) / 180;
+const pt = (r: number, deg: number) =>
+  `${(C + r * Math.cos(rad(deg))).toFixed(2)} ${(C + r * Math.sin(rad(deg))).toFixed(2)}`;
+
+// hex housing vertices (pointy-top)
+const HEX = Array.from({ length: 6 }, (_, i) => pt(R_HEX, -90 + i * 60)).join(" L ");
+// six iris blades: outer point swept inward to a focal hexagon
+const BLADES = Array.from({ length: 6 }, (_, i) => {
+  const a = -90 + i * 60;
+  return `M ${pt(R_OUT, a)} L ${pt(R_IN, a + SWEEP)}`;
+}).join(" ");
 
 export function Mascot({ size = 64, still = false, className, title }: MascotProps) {
-  const [blink, setBlink] = useState(false);
+  const [spin, setSpin] = useState(false);
 
   useEffect(() => {
     if (still) return;
     const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
-    let timeout: number;
-    const loop = () => {
-      setBlink(true);
-      timeout = window.setTimeout(() => {
-        setBlink(false);
-        timeout = window.setTimeout(loop, 2600 + Math.random() * 2600);
-      }, 130);
-    };
-    timeout = window.setTimeout(loop, 1800);
-    return () => window.clearTimeout(timeout);
+    if (!reduce) setSpin(true);
   }, [still]);
-
-  const ink = "var(--foreground)";
-  const paper = "var(--background)";
-  const dim = "var(--muted-foreground)";
 
   return (
     <svg
       width={size}
       height={size}
-      viewBox={`0 0 ${CELL * U} ${CELL * U}`}
+      viewBox={`0 0 ${VB} ${VB}`}
       className={className}
       role={title ? "img" : "presentation"}
       aria-label={title}
       aria-hidden={title ? undefined : true}
-      shapeRendering="crispEdges"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
     >
-      {/* viewfinder bump on top */}
-      {px(9, 1, 3, 1, ink, "bump")}
-      {/* shutter button */}
-      {px(3, 2, 2, 1, dim, "shutter")}
-      {/* camera body (solid ink block) */}
-      {px(1, 3, 14, 11, ink, "body")}
-      {/* inset face plate (paper) */}
-      {px(2, 4, 12, 9, paper, "face")}
-      {/* lens outer ring (ink) */}
-      {px(5, 6, 6, 6, ink, "lensring")}
-      {/* lens cavity (paper) */}
-      {px(6, 7, 4, 4, paper, "lenscavity")}
-      {/* iris — blinks from a square to a thin slit */}
-      {blink ? px(7, 8, 2, 1, ink, "iris-blink") : px(7, 8, 2, 2, ink, "iris")}
-      {/* flash window */}
-      {px(11, 5, 2, 2, ink, "flash")}
-      {px(12, 5, 1, 1, paper, "flash-glint")}
+      {/* lens housing */}
+      <path d={`M ${HEX} Z`} strokeWidth={1.6} />
+      {/* iris blades (the only part that spins) */}
+      <g
+        style={
+          spin
+            ? { animation: "vantage-spin 14s linear infinite", transformOrigin: "center" }
+            : undefined
+        }
+      >
+        <path d={BLADES} strokeWidth={1.5} />
+      </g>
+      {/* focal point — the single instant */}
+      <circle cx={C} cy={C} r={1.5} fill="currentColor" stroke="none" />
     </svg>
   );
 }

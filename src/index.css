@@ -169,6 +169,13 @@
   image-rendering: crisp-edges;
 }
 
+/* Slow idle rotation for the aperture mark (iris blades only) */
+@keyframes vantage-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* Blueprint dot-grid plate — the graph-paper backdrop behind every figure */
 @utility dot-grid {
   background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.4px);
