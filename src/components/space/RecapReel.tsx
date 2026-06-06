@@ -39,7 +39,7 @@ import {
   type Segment,
   type EnterStyle,
 } from "@/lib/recap";
-import { createBeats } from "@/lib/beats";
+import { createBeats, type BeatHandle } from "@/lib/beats";
 import { AsciiProgress } from "@/components/brand/AsciiProgress";
 import { Mascot } from "@/components/brand/Mascot";
 
@@ -66,7 +66,12 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
   const [exportProgress, setExportProgress] = useState(0);
   const [result, setResult] = useState<ExportResult | null>(null);
 
-  const liveMusicRef = useRef<{ ctx: AudioContext; beat: { stop: () => void } } | null>(null);
+  const liveMusicRef = useRef<{
+    ctx: AudioContext;
+    beat: BeatHandle;
+    audioEl?: HTMLAudioElement;
+  } | null>(null);
+  const [musicStyle, setMusicStyle] = useState<string | null>(null);
   const current = segments[seg];
   const photoCount = media.length;
   const musicSeed = useMemo(() => spaceName.length + photoCount, [spaceName, photoCount]);
@@ -112,8 +117,13 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
     const m = liveMusicRef.current;
     if (!m) return;
     liveMusicRef.current = null;
+    setMusicStyle(null);
     try {
       m.beat.stop();
+      if (m.audioEl) {
+        m.audioEl.pause();
+        m.audioEl.srcObject = null;
+      }
       window.setTimeout(() => m.ctx.close().catch(() => undefined), 700);
     } catch {
       /* ignore */
@@ -134,8 +144,24 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
           .webkitAudioContext;
       const ctx = new Ctor();
       await ctx.resume();
-      const beat = createBeats(ctx, ctx.destination, { seed: musicSeed, gain: 0.5 });
-      liveMusicRef.current = { ctx, beat };
+      let beat: BeatHandle;
+      let audioEl: HTMLAudioElement | undefined;
+      // Route through an <audio> element (media channel) so it stays audible on
+      // iOS even with the ringer/silent switch ON — WebAudio straight to the
+      // speakers is muted by that switch.
+      if (typeof ctx.createMediaStreamDestination === "function") {
+        const dest = ctx.createMediaStreamDestination();
+        beat = createBeats(ctx, dest, { seed: musicSeed, gain: 0.85 });
+        audioEl = new Audio();
+        audioEl.srcObject = dest.stream;
+        audioEl.setAttribute("playsinline", "");
+        audioEl.autoplay = true;
+        await audioEl.play().catch(() => undefined);
+      } else {
+        beat = createBeats(ctx, ctx.destination, { seed: musicSeed, gain: 0.85 });
+      }
+      liveMusicRef.current = { ctx, beat, audioEl };
+      setMusicStyle(beat.style);
       setMusicOn(true);
     } catch {
       /* audio unavailable — leave muted */
@@ -319,14 +345,20 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
           <button
             type="button"
             onClick={toggleMusic}
-            aria-label={musicOn ? "Mute soundtrack" : "Play soundtrack"}
+            aria-label={musicOn ? "Mute soundtrack" : "Play a random soundtrack"}
             aria-pressed={musicOn}
+            title="Synthesized, royalty-free — a fresh groove each time"
             className={`inline-flex size-10 items-center justify-center rounded-md border border-border hover:bg-secondary ${
               musicOn ? "text-primary" : "text-muted-foreground"
             }`}
           >
             {musicOn ? <Volume2 className="size-5" /> : <VolumeX className="size-5" />}
           </button>
+          {musicOn && musicStyle && (
+            <span className="font-mono text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground">
+              ♪ {musicStyle}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -687,7 +719,7 @@ async function renderRecapVideo(
       const actx = new Ctor();
       await actx.resume();
       const dest = actx.createMediaStreamDestination();
-      const beat = createBeats(actx, dest, { seed: opts.seed, gain: 0.6 });
+      const beat = createBeats(actx, dest, { seed: opts.seed, gain: 0.85 });
       dest.stream.getAudioTracks().forEach((t) => stream.addTrack(t));
       audio = { ctx: actx, beat };
     } catch {

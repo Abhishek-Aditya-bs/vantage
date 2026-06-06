@@ -233,8 +233,8 @@ export default function Space() {
         </div>
       )}
 
-      {/* wall */}
-      <main id="main" className="relative flex-1 px-3 py-4 sm:px-4">
+      {/* wall — extra bottom padding so the last tiles clear the fixed action bar */}
+      <main id="main" className="relative flex-1 px-3 py-4 pb-28 sm:px-4">
         {connecting ? (
           <div className="flex flex-col items-center gap-4 py-24">
             <IrisShutter size={88} ariaLabel="Connecting to space" />
@@ -247,14 +247,14 @@ export default function Space() {
         )}
       </main>
 
-      {/* floating actions */}
-      <div className="pointer-events-none sticky bottom-0 z-20 flex items-center justify-between gap-3 p-4">
+      {/* floating actions — fixed to the viewport so they never drift on scroll */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-30 flex items-center justify-between gap-3 bg-gradient-to-t from-background via-background/85 to-transparent p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <Button
-          variant="outline"
+          variant="secondary"
           size="lg"
           onClick={() => setRecapOpen(true)}
           disabled={sock.wall.length === 0}
-          className="pointer-events-auto shadow-lg"
+          className="pointer-events-auto border border-border shadow-lg"
         >
           <Clapperboard className="size-5" />
           <span className="hidden sm:inline">Play recap</span>
