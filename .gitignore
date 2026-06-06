@@ -22,3 +22,14 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Cloudflare / Wrangler local dev state (miniflare D1/DO/KV sqlite, tmp bundles)
+.wrangler/
+
+# Secrets — never commit. JWT_SECRET/TURNSTILE_SECRET/RENDER_SECRET are Wrangler secrets.
+.dev.vars
+.env
+.env.*
+
+# Local agent / editor tooling
+.claude/
