@@ -82,7 +82,7 @@ R2 would be the obvious place to store photos — but enabling R2 requires a **p
 - **App-layer rate limiting** — sliding-window limits on space creation, joins, uploads (10/min per member), WebSocket messages, Moment triggers, and admin attempts (the `RateLimiter` DO + an in-DO per-socket throttle), since WAF rate-limiting isn't on the free plan for `*.workers.dev`.
 - **Per-space quotas** — max **50 members / 300 photos / 500 MB**, plus 7-day auto-expiry via Cron, to stay inside the free tier.
 - **Cloudflare DDoS** — always-on L3/4 + L7 network scrubbing applies automatically (even on `workers.dev`).
-- **Turnstile** — wired into create/join (server-side `siteverify`); ships with Cloudflare's test key and fails-open, so it's a one-step upgrade to real enforcement.
+- **Turnstile** — real Cloudflare Turnstile enforced on create/join (server-side `siteverify`). The public site key reaches the client via `public/config.js` (`window.__VANTAGE__`); the secret is a Wrangler secret (`TURNSTILE_SECRET`). Fails **open** on infra errors so a transient outage never locks out guests; set `TURNSTILE_ENFORCE=1` for strict hostname/action cross-checks.
 - **Hardening** — front-camera capture is mirrored (WYSIWYG selfies); security headers + CSP; unguessable media IDs; secrets (`JWT_SECRET`, `ADMIN_*`, etc.) never in source.
 
 ---
