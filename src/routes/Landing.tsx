@@ -258,7 +258,7 @@ export default function Landing() {
               <dl className="mt-8 divide-y divide-border border-y border-border font-mono text-sm">
                 {[
                   ["PER-IP LIMITS", "spaces · joins · uploads"],
-                  ["PER-SPACE QUOTA", "50 people · 150 photos"],
+                  ["PER-SPACE QUOTA", "50 people · 300 photos"],
                   ["CAPABILITY TOKENS", "signed, scoped to one space"],
                   ["AUTO-EXPIRE", "spaces vanish after 7 days"],
                   ["COST", "$0 / mo · no card"],

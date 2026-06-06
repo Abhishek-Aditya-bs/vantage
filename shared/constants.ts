@@ -22,11 +22,16 @@ export const ALLOWED_IMAGE_TYPES = [
   "image/png",
 ] as const;
 
-/** Per-space quotas — keep a viral app inside the free tier. */
+/**
+ * Per-space quotas. These are ROOM-TOTAL caps (first-come, shared by everyone —
+ * not a per-person allowance); the per-member upload RATE limit below is the
+ * anti-spam control. Sized so a full room (50 people × ~6 photos) fits, while
+ * staying well inside the Cloudflare free tier (≤ 500 MB of the per-DO budget).
+ */
 export const SPACE_QUOTAS = {
   maxMembers: 50,
-  maxMediaItems: 150,
-  maxMediaBytes: 300 * 1024 * 1024, // 300 MB per space (DO free cap is 1 GB)
+  maxMediaItems: 300, // 50 people × ~6 photos
+  maxMediaBytes: 500 * 1024 * 1024, // 500 MB per space (well under the per-DO free budget)
   maxAgeMs: 7 * 24 * 60 * 60 * 1000, // auto-expire after 7 days
 } as const;
 
@@ -38,7 +43,7 @@ export const MOMENT_COLLECT_WINDOW_MS = 12_000; // grace period to receive frame
 export const RATE_LIMITS = {
   createSpace: { limit: 3, windowMs: 60 * 60 * 1000 }, // per IP / hour
   joinSpace: { limit: 10, windowMs: 10 * 60 * 1000 }, // per IP / 10 min
-  upload: { limit: 6, windowMs: 60 * 1000 }, // per member / minute
+  upload: { limit: 10, windowMs: 60 * 1000 }, // per member / minute (allows bursts)
   wsMessage: { limit: 25, windowMs: 10 * 1000 }, // per socket / 10s
   momentTrigger: { limit: 2, windowMs: 60 * 1000 }, // per space / minute
 } as const;
