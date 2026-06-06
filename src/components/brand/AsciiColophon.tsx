@@ -1,49 +1,43 @@
 /**
- * ASCII colophon footer — a film-strip motif and the product tagline rendered
- * in Space Mono. Deliberately editorial: hairline rule + monospace credits.
+ * Colophon footer — a ░ ruled row, the wordmark + tagline, an ASCII camera
+ * plate, and the legal line. Monochrome and editorial: hairline rules and
+ * Geist Mono credits in the reference-manual register.
  */
 import { cn } from "@/lib/utils";
-
-const FILMSTRIP = "▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░▓░";
 
 export function AsciiColophon({ className }: { className?: string }) {
   const year = new Date().getFullYear();
   return (
     <footer className={cn("border-t border-border", className)}>
-      <div className="mx-auto w-full max-w-6xl px-5 py-10">
-        {/* sprocket / film strip */}
-        <pre
-          aria-hidden="true"
-          className="select-none overflow-hidden font-mono text-[0.7rem] leading-none text-primary/60"
-        >
-          {FILMSTRIP}
-        </pre>
+      <div
+        aria-hidden="true"
+        className="shade-row w-full overflow-hidden px-5 pt-8 text-[0.7rem] leading-none tracking-[0.05em] sm:px-8"
+      >
+        {"░".repeat(400)}
+      </div>
 
-        <div className="mt-6 grid gap-6 sm:grid-cols-[1fr_auto] sm:items-end">
+      <div className="mx-auto w-full max-w-6xl px-5 py-12 sm:px-8">
+        <div className="grid gap-8 sm:grid-cols-[1fr_auto] sm:items-end">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.22em] text-muted-foreground">
-              VANTAGE · multi-angle capture
+            <p className="font-mono text-[0.7rem] uppercase tracking-[0.26em] text-muted-foreground">
+              Vantage · multi-angle capture
             </p>
-            <p className="mt-2 font-display text-2xl font-semibold tracking-tight">
-              every angle. one moment.
-            </p>
+            <p className="mt-3 font-display text-2xl font-semibold tracking-tight">Every angle. One instant.</p>
           </div>
           <pre
             aria-hidden="true"
             className="select-none whitespace-pre font-mono text-[0.65rem] leading-tight text-muted-foreground"
           >
-{`  ┌───────────┐
-  │ ● ▒▒▒▒▒ ◯ │
-  │   VANTAGE │
-  └───────────┘`}
+{`  +-----------+
+  | [o]  ::: o|
+  |  VANTAGE  |
+  +-----------+`}
           </pre>
         </div>
 
-        <div className="mt-8 flex flex-col gap-1 border-t border-border pt-5 font-mono text-[0.7rem] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-          <span>© {year} VANTAGE — free · private · ephemeral (7-day spaces)</span>
-          <span className="tracking-[0.16em]">
-            built for the moment, not the cloud
-          </span>
+        <div className="mt-10 flex flex-col gap-2 border-t border-border pt-6 font-mono text-[0.7rem] uppercase tracking-[0.06em] text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+          <span>© {year} Vantage — free · private · ephemeral (7-day spaces)</span>
+          <span className="tracking-[0.16em]">built for the moment, not the cloud</span>
         </div>
       </div>
     </footer>

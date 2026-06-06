@@ -1,284 +1,254 @@
 /**
- * Landing — the marketing centerpiece. Swiss editorial grid, big Bricolage
- * display type, hairline rules, a contact-sheet/film motif, and the
- * iris-shutter as the hero device. Every section explains one part of Vantage.
+ * Landing — the marketing centerpiece, rebuilt as a technical reference manual.
+ * Strict monochrome. Tight Geist display, editorial EB Garamond body, Geist Mono
+ * labels. Hand-authored black-and-white blueprint figures carry every section;
+ * Factory-style numeric anchors, hairline rules, and ░ dividers set the rhythm.
  */
+import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { ArrowRight, QrCode, Radio, Lock, Zap } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { IrisShutter } from "@/components/brand/IrisShutter";
-import { Mascot } from "@/components/brand/Mascot";
+import { PixelHeadline } from "@/components/brand/PixelHeadline";
 import { AsciiColophon } from "@/components/brand/AsciiColophon";
-import { HowAMomentWorks } from "@/components/landing/HowAMomentWorks";
-import { LiveWallPreview } from "@/components/landing/LiveWallPreview";
+import { BlueprintFigure } from "@/components/landing/BlueprintFigure";
+import { ShadeDivider } from "@/components/landing/ShadeDivider";
+import { FigSyncCapture } from "@/components/landing/figures/FigSyncCapture";
+import { FigAperture } from "@/components/landing/figures/FigAperture";
+import { FigLiveWall } from "@/components/landing/figures/FigLiveWall";
+import { FigArchitecture } from "@/components/landing/figures/FigArchitecture";
 
-const fadeUp = {
-  initial: { opacity: 0, y: 16 },
+const reveal = {
+  initial: { opacity: 0, y: 10 },
   whileInView: { opacity: 1, y: 0 },
   viewport: { once: true, margin: "-60px" },
-  transition: { duration: 0.4, ease: "easeOut" as const },
+  transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] as const },
 };
 
 export default function Landing() {
   return (
     <div className="min-h-dvh bg-background">
       <AppHeader>
-        <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-          <Link to="/create">Start a space</Link>
+        <Button asChild variant="outline" size="sm" className="hidden font-mono text-xs sm:inline-flex">
+          <Link to="/create">
+            START A SPACE <ArrowRight />
+          </Link>
         </Button>
       </AppHeader>
 
       <main id="main">
-        {/* ============================= HERO ============================= */}
-        <section className="relative overflow-hidden border-b border-border">
-          <div className="pointer-events-none absolute inset-0 grid-lines opacity-[0.35]" />
-          <div className="relative mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-16 md:grid-cols-12 md:gap-6 md:py-24">
-            {/* left: editorial headline */}
-            <div className="md:col-span-7">
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, ease: "easeOut" }}
-                className="flex flex-wrap items-center gap-2"
-              >
-                <Badge variant="primary">multi-camera capture</Badge>
-                <Badge variant="live">
-                  <span className="inline-block size-1.5 rounded-full bg-live" />
-                  real-time
-                </Badge>
-              </motion.div>
+        {/* ============================== HERO ============================= */}
+        <section className="relative overflow-hidden">
+          <div className="pointer-events-none absolute inset-0 grid-lines opacity-[0.5]" />
+          <Shell className="relative pt-14 pb-12 sm:pt-20 sm:pb-16">
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.5 }}
+              className="font-mono text-[0.7rem] uppercase tracking-[0.28em] text-muted-foreground"
+            >
+              Multi-angle capture · real-time · no app
+            </motion.p>
 
-              <motion.h1
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, ease: "easeOut", delay: 0.05 }}
-                className="mt-6 font-display text-5xl font-extrabold leading-[0.95] tracking-tight sm:text-7xl md:text-[5.5rem]"
-              >
-                Every angle.
-                <br />
-                <span className="text-primary">One moment.</span>
-              </motion.h1>
+            <motion.h1
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-5 font-display font-semibold leading-[0.92] tracking-[-0.035em]"
+              style={{ fontSize: "clamp(2.85rem, 9vw, 6.5rem)" }}
+            >
+              Three phones.
+              <br />
+              One instant.
+            </motion.h1>
 
-              <motion.p
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, ease: "easeOut", delay: 0.12 }}
-                className="mt-6 max-w-xl text-lg text-muted-foreground"
-              >
-                Scan a QR to join a <strong className="text-foreground">space</strong>.
-                Everyone&rsquo;s photos stream onto a shared{" "}
-                <strong className="text-foreground">live wall</strong> as they happen.
-                Then anyone triggers a{" "}
-                <strong className="text-moment">Moment</strong> — every phone
-                captures the same instant into one multi-angle artifact.
-              </motion.p>
+            <motion.p
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.08 }}
+              className="mt-7 max-w-xl font-serif text-xl leading-relaxed text-muted-foreground"
+            >
+              Scan a QR to join a <em className="not-italic text-foreground">space</em>. Every photo anyone
+              takes streams onto a shared <em className="not-italic text-foreground">live wall</em> as it
+              happens. Then anyone fires a <em className="not-italic text-foreground">Moment</em> — and every
+              phone in the room captures the same instant into one multi-angle artifact.
+            </motion.p>
 
-              <motion.div
-                initial={{ opacity: 0, y: 18 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.45, ease: "easeOut", delay: 0.18 }}
-                className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center"
-              >
-                <Button asChild size="xl">
-                  <Link to="/create">
-                    Start a space
-                    <ArrowRight />
-                  </Link>
-                </Button>
-                <p className="font-mono text-xs text-muted-foreground">
-                  no app · no account · free
-                </p>
-              </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1], delay: 0.14 }}
+              className="mt-9 flex flex-col gap-4 sm:flex-row sm:items-center"
+            >
+              <Button asChild size="xl">
+                <Link to="/create">
+                  Start a space <ArrowRight />
+                </Link>
+              </Button>
+              <span className="font-mono text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                no app · no account · free
+              </span>
+            </motion.div>
+          </Shell>
 
-              {/* hairline stat row */}
-              <dl className="mt-12 grid grid-cols-3 gap-px border-y border-border bg-border">
+          {/* hero figure — the synchronized-capture schematic */}
+          <Shell className="relative pb-16 sm:pb-20">
+            <motion.div {...reveal}>
+              <BlueprintFigure fig="FIG_001" caption="SYNCHRONIZED CAPTURE">
+                <FigSyncCapture />
+              </BlueprintFigure>
+            </motion.div>
+          </Shell>
+        </section>
+
+        <ShadeDivider />
+
+        {/* ========================= 01 — THE MOMENT ====================== */}
+        <Section>
+          <div className="grid grid-cols-1 gap-12 md:grid-cols-12 md:items-center md:gap-10">
+            <motion.div {...reveal} className="md:col-span-5">
+              <Eyebrow n="01">The Moment</Eyebrow>
+              <H2>Fire one synchronized shutter.</H2>
+              <Lede>
+                Trigger a Moment and every connected phone runs the same countdown — clocks aligned over the
+                wire — then releases its shutter at one server instant. The room photographs a single moment
+                from every angle at once.
+              </Lede>
+              <SpecList
+                items={[
+                  "clocks sync over the socket",
+                  "iris countdown on every screen",
+                  "auto-capture at T-zero",
+                  "frames stitched into one artifact",
+                ]}
+              />
+            </motion.div>
+            <motion.div {...reveal} className="md:col-span-7">
+              <BlueprintFigure fig="FIG_003" caption="MOMENT MECHANISM">
+                <FigAperture />
+              </BlueprintFigure>
+            </motion.div>
+          </div>
+        </Section>
+
+        <ShadeDivider />
+
+        {/* ======================== 02 — THE LIVE WALL ==================== */}
+        <Section>
+          <div className="grid grid-cols-1 gap-12 md:grid-cols-12 md:items-center md:gap-10">
+            <motion.div {...reveal} className="md:order-2 md:col-span-5">
+              <Eyebrow n="02">The Live Wall</Eyebrow>
+              <H2>A contact sheet that fills itself.</H2>
+              <Lede>
+                Every photo anyone shoots lands on a shared surface in real time, tagged with who took it and
+                when. No refresh, no upload screen — the whole event assembles itself in one place as it
+                happens.
+              </Lede>
+              <SpecList
+                items={[
+                  "one tile per photo, instantly",
+                  "author + timestamp on every frame",
+                  "streamed over a live websocket",
+                  "the room, assembling in one place",
+                ]}
+              />
+            </motion.div>
+            <motion.div {...reveal} className="md:order-1 md:col-span-7">
+              <BlueprintFigure fig="FIG_002" caption="THE LIVE WALL">
+                <FigLiveWall />
+              </BlueprintFigure>
+            </motion.div>
+          </div>
+        </Section>
+
+        <ShadeDivider />
+
+        {/* ============================ 03 — JOIN ========================= */}
+        <Section>
+          <motion.div {...reveal} className="max-w-2xl">
+            <Eyebrow n="03">Join</Eyebrow>
+            <H2>Scan. Name. Shoot.</H2>
+            <Lede>
+              The join link is the whole invitation. Share a QR or a code; anyone opens it in a phone browser,
+              picks a name, and they are on the wall. No install, no account, no friction.
+            </Lede>
+          </motion.div>
+          <motion.ol
+            {...reveal}
+            className="mt-10 grid grid-cols-1 gap-px overflow-hidden border border-border bg-border sm:grid-cols-3"
+          >
+            {[
+              { n: "01", t: "Start a space", d: "Name it, name yourself. You get a QR and a share link." },
+              { n: "02", t: "Share the code", d: "Friends scan the QR or open the link in any browser." },
+              { n: "03", t: "Shoot together", d: "Photos hit the wall live; the host can fire a Moment." },
+            ].map((s) => (
+              <li key={s.n} className="bg-background p-7">
+                <span className="font-mono text-xs tracking-[0.2em] text-muted-foreground">{s.n}</span>
+                <h3 className="mt-4 font-display text-xl font-semibold tracking-tight">{s.t}</h3>
+                <p className="mt-2 font-serif text-base leading-relaxed text-muted-foreground">{s.d}</p>
+              </li>
+            ))}
+          </motion.ol>
+        </Section>
+
+        <ShadeDivider />
+
+        {/* ====================== 04 — EDGE TOPOLOGY ====================== */}
+        <Section>
+          <div className="grid grid-cols-1 gap-12 md:grid-cols-12 md:items-center md:gap-10">
+            <motion.div {...reveal} className="md:col-span-5">
+              <Eyebrow n="04">Topology</Eyebrow>
+              <H2>Runs on the edge. Costs nothing.</H2>
+              <Lede>
+                No origin server. Each space is one Durable Object living at the edge, holding its own photos
+                and the live socket; a separate rate-limiter guards every entrance. The whole thing fits inside
+                a free tier.
+              </Lede>
+              <dl className="mt-8 divide-y divide-border border-y border-border font-mono text-sm">
                 {[
-                  ["50", "people / space"],
-                  ["1", "synced instant"],
-                  ["∞", "angles, one frame"],
-                ].map(([n, label]) => (
-                  <div key={label} className="bg-background px-4 py-4">
-                    <dt className="font-display text-3xl font-bold tabular-nums">
-                      {n}
-                    </dt>
-                    <dd className="mt-1 font-mono text-[0.7rem] uppercase tracking-[0.12em] text-muted-foreground">
-                      {label}
-                    </dd>
+                  ["PER-IP LIMITS", "spaces · joins · uploads"],
+                  ["PER-SPACE QUOTA", "50 people · 150 photos"],
+                  ["CAPABILITY TOKENS", "signed, scoped to one space"],
+                  ["AUTO-EXPIRE", "spaces vanish after 7 days"],
+                  ["COST", "$0 / mo · no card"],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex items-baseline justify-between gap-4 py-3">
+                    <dt className="text-muted-foreground">{k}</dt>
+                    <dd className="text-right text-foreground">{v}</dd>
                   </div>
                 ))}
               </dl>
-            </div>
-
-            {/* right: iris-shutter + mascot device */}
-            <div className="md:col-span-5">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, ease: "easeOut", delay: 0.1 }}
-                className="grain relative mx-auto flex aspect-square max-w-sm flex-col items-center justify-center rounded-xl border border-border bg-card p-8"
-              >
-                <span className="grain-overlay" />
-                <IrisShutter size={220} ariaLabel="Vantage aperture" />
-                <div className="mt-6 flex items-center gap-3">
-                  <Mascot size={40} />
-                  <div className="text-left">
-                    <p className="font-mono text-[0.65rem] uppercase tracking-[0.16em] text-muted-foreground">
-                      aperture · open
-                    </p>
-                    <p className="font-display text-sm font-semibold">
-                      ready to capture
-                    </p>
-                  </div>
-                </div>
-                {/* corner registration marks (camera framing) */}
-                <Corner className="left-3 top-3" />
-                <Corner className="right-3 top-3 rotate-90" />
-                <Corner className="bottom-3 left-3 -rotate-90" />
-                <Corner className="bottom-3 right-3 rotate-180" />
-              </motion.div>
-            </div>
+            </motion.div>
+            <motion.div {...reveal} className="md:col-span-7">
+              <BlueprintFigure fig="FIG_004" caption="EDGE TOPOLOGY">
+                <FigArchitecture />
+              </BlueprintFigure>
+            </motion.div>
           </div>
-        </section>
+        </Section>
 
-        {/* ====================== HOW A MOMENT WORKS ====================== */}
-        <section className="border-b border-border">
-          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-16 md:grid-cols-12 md:py-24">
-            <motion.div {...fadeUp} className="md:col-span-5">
-              <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
-                /01 — the moment
-              </p>
-              <h2 className="mt-4 font-display text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
-                Three phones.
-                <br />
-                One instant.
+        <ShadeDivider />
+
+        {/* ============================== CTA ============================= */}
+        <section className="relative overflow-hidden">
+          <div className="pointer-events-none absolute inset-0 grid-lines opacity-[0.4]" />
+          <Shell className="relative py-24 text-center sm:py-32">
+            <motion.div {...reveal} className="flex flex-col items-center">
+              <PixelHeadline text="VANTAGE" height={54} cell={6.4} title="Vantage" className="text-foreground" />
+              <h2 className="mt-8 font-display font-semibold tracking-[-0.03em]" style={{ fontSize: "clamp(2.25rem, 6vw, 4rem)" }}>
+                Start a space.
               </h2>
-              <p className="mt-5 max-w-md text-muted-foreground">
-                When a Moment is triggered, every connected phone runs the same
-                synchronized countdown — clocks aligned over the wire — and fires
-                its shutter at the exact same server time. The result is a single
-                instant photographed from every angle in the room.
+              <p className="mx-auto mt-5 max-w-md font-serif text-xl leading-relaxed text-muted-foreground">
+                Spin one up, share the QR, and let the whole room shoot the same moment together.
               </p>
-              <ul className="mt-6 space-y-3 font-mono text-sm">
-                {[
-                  "clocks sync over the socket",
-                  "iris countdown on every screen",
-                  "auto-capture at T₀",
-                  "frames stitched into one artifact",
-                ].map((t, i) => (
-                  <li key={t} className="flex items-center gap-3">
-                    <span className="text-primary tabular-nums">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span className="h-px w-5 bg-border" />
-                    <span className="text-foreground">{t}</span>
-                  </li>
-                ))}
-              </ul>
+              <Button asChild size="xl" className="mt-9">
+                <Link to="/create">
+                  Create your space <ArrowRight />
+                </Link>
+              </Button>
             </motion.div>
-            <motion.div {...fadeUp} className="md:col-span-7 md:pl-8">
-              <div className="rounded-xl border border-border bg-card p-6 sm:p-10">
-                <HowAMomentWorks />
-              </div>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* ========================= LIVE WALL =========================== */}
-        <section className="border-b border-border">
-          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-10 px-5 py-16 md:grid-cols-12 md:py-24">
-            <motion.div {...fadeUp} className="md:col-span-7 md:order-2">
-              <p className="font-mono text-xs uppercase tracking-[0.2em] text-accent">
-                /02 — the live wall
-              </p>
-              <h2 className="mt-4 font-display text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
-                A contact sheet that fills itself.
-              </h2>
-              <p className="mt-5 max-w-md text-muted-foreground">
-                Every photo anyone takes lands on a shared wall in real time —
-                tiles drop onto the surface from the edges, tagged with who shot
-                them and when. It&rsquo;s the whole event, assembling live, in one
-                place.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                <Badge variant="accent">
-                  <Radio className="size-3" /> websocket-live
-                </Badge>
-                <Badge variant="outline">masonry · staggered entrance</Badge>
-              </div>
-            </motion.div>
-            <motion.div {...fadeUp} className="md:order-1 md:col-span-5">
-              <div className="rounded-xl border border-border bg-card p-5">
-                <div className="mb-3 flex items-center justify-between font-mono text-[0.7rem] uppercase tracking-[0.12em] text-muted-foreground">
-                  <span>live wall</span>
-                  <span className="flex items-center gap-1.5 text-live">
-                    <span className="inline-block size-1.5 animate-pulse rounded-full bg-live" />
-                    streaming
-                  </span>
-                </div>
-                <LiveWallPreview />
-              </div>
-            </motion.div>
-          </div>
-        </section>
-
-        {/* ===================== RECAP + TRUST ROW ====================== */}
-        <section className="border-b border-border">
-          <div className="mx-auto grid w-full max-w-6xl grid-cols-1 gap-px bg-border md:grid-cols-3">
-            {[
-              {
-                icon: Zap,
-                title: "Auto-recap reel",
-                body: "When it&rsquo;s over, a montage of the whole space plays back — film-strip crossfades, Ken-Burns on stills.",
-              },
-              {
-                icon: QrCode,
-                title: "Join by QR",
-                body: "Share a code or QR. Guests tap in from any phone browser — no install, no sign-up, just a name.",
-              },
-              {
-                icon: Lock,
-                title: "Free, private, ephemeral",
-                body: "Spaces are invite-only and auto-expire after 7 days. Built to run inside a free tier — no surveillance.",
-              },
-            ].map(({ icon: Icon, title, body }) => (
-              <motion.div
-                key={title}
-                {...fadeUp}
-                className="bg-background p-8"
-              >
-                <Icon className="size-5 text-primary" />
-                <h3 className="mt-4 font-display text-xl font-semibold">
-                  {title}
-                </h3>
-                <p
-                  className="mt-2 text-sm text-muted-foreground"
-                  dangerouslySetInnerHTML={{ __html: body }}
-                />
-              </motion.div>
-            ))}
-          </div>
-        </section>
-
-        {/* ============================= CTA ============================= */}
-        <section className="mx-auto w-full max-w-6xl px-5 py-20 text-center">
-          <motion.div {...fadeUp}>
-            <IrisShutter size={88} className="mx-auto" />
-            <h2 className="mt-6 font-display text-4xl font-bold tracking-tight sm:text-6xl">
-              Start a space.
-            </h2>
-            <p className="mx-auto mt-4 max-w-md text-muted-foreground">
-              Spin one up, share the QR, and let the room shoot together.
-            </p>
-            <Button asChild size="xl" className="mt-8">
-              <Link to="/create">
-                Create your space
-                <ArrowRight />
-              </Link>
-            </Button>
-          </motion.div>
+          </Shell>
         </section>
       </main>
 
@@ -287,12 +257,53 @@ export default function Landing() {
   );
 }
 
-/** Camera-framing corner registration mark. */
-function Corner({ className }: { className?: string }) {
+/* ----------------------------- layout atoms ----------------------------- */
+
+function Shell({ children, className }: { children: ReactNode; className?: string }) {
+  return <div className={`mx-auto w-full max-w-6xl px-5 sm:px-8 ${className ?? ""}`}>{children}</div>;
+}
+
+function Section({ children }: { children: ReactNode }) {
   return (
-    <span
-      aria-hidden="true"
-      className={`pointer-events-none absolute size-4 border-l-2 border-t-2 border-primary/60 ${className ?? ""}`}
-    />
+    <section>
+      <Shell className="py-16 sm:py-24">{children}</Shell>
+    </section>
+  );
+}
+
+function Eyebrow({ n, children }: { n: string; children: ReactNode }) {
+  return (
+    <p className="font-mono text-[0.7rem] uppercase tracking-[0.26em] text-muted-foreground">
+      <span className="text-foreground">[ {n} ]</span>&nbsp;&nbsp;{children}
+    </p>
+  );
+}
+
+function H2({ children }: { children: ReactNode }) {
+  return (
+    <h2
+      className="mt-4 font-display font-semibold leading-[1.04] tracking-[-0.03em]"
+      style={{ fontSize: "clamp(2rem, 4.4vw, 3.25rem)" }}
+    >
+      {children}
+    </h2>
+  );
+}
+
+function Lede({ children }: { children: ReactNode }) {
+  return <p className="mt-6 max-w-md font-serif text-xl leading-relaxed text-muted-foreground">{children}</p>;
+}
+
+function SpecList({ items }: { items: string[] }) {
+  return (
+    <ul className="mt-8 divide-y divide-border border-y border-border font-mono text-sm">
+      {items.map((t, i) => (
+        <li key={t} className="flex items-baseline gap-4 py-2.5">
+          <span className="tabular-nums text-muted-foreground">{String(i + 1).padStart(2, "0")}</span>
+          <span className="h-px w-4 translate-y-[-3px] bg-border" />
+          <span className="text-foreground">{t}</span>
+        </li>
+      ))}
+    </ul>
   );
 }

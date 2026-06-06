@@ -44,7 +44,8 @@ function storedMode(): Mode {
   } catch {
     /* ignore */
   }
-  return "system";
+  // Vantage is a dark-primary product; default to dark on first visit.
+  return "dark";
 }
 
 function persist(mode: Mode): void {

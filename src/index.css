@@ -1,79 +1,92 @@
 /* ============================================================================
    Vantage — global stylesheet
-   Direction: "Swiss Editorial + Lo-Fi Pixel" · Palette: "Darkroom Amber"
-   Deliberately NOT the indigo/violet glassmorphism AI-slop default.
+   Direction: "Technical Reference Manual" — strict monochrome, blueprint
+   diagrams, mono labels, editorial serif. Dark-primary; light = exact inverse.
+   Lineage: makingsoftware.com (figure rails, pixel headline, dot-grid plates)
+   × factory.ai (tight Geist display, mono eyebrows, hairline rules, restraint).
+   Zero accent hue on the marketing surface. Functional red/green live only
+   inside the capture app.
    ========================================================================== */
 
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* Typefaces (self-hosted via Fontsource — no Google CDN, no layout shift) */
-@import "@fontsource-variable/bricolage-grotesque"; /* display */
-@import "@fontsource-variable/dm-sans"; /* body */
-@import "@fontsource/space-mono/400.css"; /* mono */
-@import "@fontsource/space-mono/700.css";
+/* Typefaces — self-hosted via Fontsource (no CDN, no layout shift) */
+@import "@fontsource-variable/geist";          /* display + UI sans */
+@import "@fontsource-variable/geist-mono";      /* labels / eyebrows / figure rails */
+@import "@fontsource-variable/eb-garamond";     /* editorial serif body */
 
 @custom-variant dark (&:is(.dark *));
 
-/* ---- Light theme : warm bone-white darkroom ---------------------------- */
+/* ---- Light theme : white-paper rendering (inverse of dark) -------------- */
 :root {
-  --radius: 0.375rem;
+  --radius: 0.3rem;
 
-  --background: oklch(0.97 0.012 80);
-  --foreground: oklch(0.16 0.02 60);
-  --card: oklch(0.99 0.008 80);
-  --card-foreground: oklch(0.16 0.02 60);
-  --popover: oklch(0.99 0.008 80);
-  --popover-foreground: oklch(0.16 0.02 60);
-  --primary: oklch(0.68 0.17 55); /* amber-sienna — the Moment color */
-  --primary-foreground: oklch(0.99 0.008 80);
-  --secondary: oklch(0.93 0.018 80);
-  --secondary-foreground: oklch(0.22 0.02 60);
-  --accent: oklch(0.62 0.1 190); /* teal — presence / live */
+  --background: oklch(0.98 0 0);
+  --foreground: oklch(0.17 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.17 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.17 0 0);
+  --primary: oklch(0.18 0 0);            /* near-black ink */
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0 0);
+  --secondary-foreground: oklch(0.22 0 0);
+  --accent: oklch(0.55 0 0);             /* mid gray (no hue) */
   --accent-foreground: oklch(0.99 0 0);
-  --muted: oklch(0.91 0.015 75);
-  --muted-foreground: oklch(0.5 0.02 70);
-  --border: oklch(0.84 0.018 75);
-  --input: oklch(0.84 0.018 75);
-  --ring: oklch(0.68 0.17 55);
+  --muted: oklch(0.95 0 0);
+  --muted-foreground: oklch(0.44 0 0);
+  --border: oklch(0 0 0 / 0.13);
+  --input: oklch(0 0 0 / 0.15);
+  --ring: oklch(0.44 0 0);
   --destructive: oklch(0.57 0.22 27);
   --destructive-foreground: oklch(0.99 0 0);
 
-  /* product-specific accents */
-  --moment: oklch(0.62 0.24 22); /* synchronized-capture red */
+  /* functional signal colors — used ONLY inside the live capture app */
+  --moment: oklch(0.6 0.23 23);          /* synchronized-capture red */
   --moment-foreground: oklch(0.99 0 0);
-  --live: oklch(0.72 0.2 145); /* recording / live-now green */
+  --live: oklch(0.58 0.16 150);          /* recording / live-now green */
 
-  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "DM Sans Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Space Mono", ui-monospace, "SFMono-Regular", monospace;
+  /* blueprint plate texture */
+  --grid-dot: oklch(0 0 0 / 0.14);
+  --shade: oklch(0 0 0 / 0.09);
+
+  --font-display: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "EB Garamond Variable", "EB Garamond", Georgia, "Times New Roman", serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* ---- Dark theme : deep warm near-black (NOT cold slate) ----------------- */
+/* ---- Dark theme : near-black plate (the primary surface) ---------------- */
 .dark {
-  --background: oklch(0.14 0.018 55);
-  --foreground: oklch(0.93 0.014 75);
-  --card: oklch(0.19 0.018 55);
-  --card-foreground: oklch(0.93 0.014 75);
-  --popover: oklch(0.19 0.018 55);
-  --popover-foreground: oklch(0.93 0.014 75);
-  --primary: oklch(0.76 0.18 65);
-  --primary-foreground: oklch(0.14 0.018 55);
-  --secondary: oklch(0.24 0.018 55);
-  --secondary-foreground: oklch(0.93 0.014 75);
-  --accent: oklch(0.7 0.12 190);
-  --accent-foreground: oklch(0.14 0 0);
-  --muted: oklch(0.22 0.014 55);
-  --muted-foreground: oklch(0.6 0.018 70);
-  --border: oklch(1 0 0 / 12%);
-  --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.76 0.18 65);
+  --background: oklch(0.135 0 0);        /* ~#0c0c0c */
+  --foreground: oklch(0.955 0 0);
+  --card: oklch(0.172 0 0);
+  --card-foreground: oklch(0.955 0 0);
+  --popover: oklch(0.172 0 0);
+  --popover-foreground: oklch(0.955 0 0);
+  --primary: oklch(0.97 0 0);            /* near-white ink */
+  --primary-foreground: oklch(0.16 0 0);
+  --secondary: oklch(0.235 0 0);
+  --secondary-foreground: oklch(0.955 0 0);
+  --accent: oklch(0.7 0 0);
+  --accent-foreground: oklch(0.16 0 0);
+  --muted: oklch(0.225 0 0);
+  --muted-foreground: oklch(0.62 0 0);
+  --border: oklch(1 0 0 / 0.14);
+  --input: oklch(1 0 0 / 0.16);
+  --ring: oklch(0.7 0 0);
   --destructive: oklch(0.7 0.2 22);
   --destructive-foreground: oklch(0.99 0 0);
 
-  --moment: oklch(0.66 0.24 22);
+  --moment: oklch(0.66 0.24 23);
   --moment-foreground: oklch(0.99 0 0);
-  --live: oklch(0.74 0.2 145);
+  --live: oklch(0.74 0.18 148);
+
+  --grid-dot: oklch(1 0 0 / 0.13);
+  --shade: oklch(1 0 0 / 0.075);
 }
 
 /* ---- Map design tokens onto Tailwind utility namespace ----------------- */
@@ -103,6 +116,7 @@
 
   --font-display: var(--font-display);
   --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
   --font-mono: var(--font-mono);
 
   --radius-sm: calc(var(--radius) - 2px);
@@ -128,9 +142,14 @@
     font-family: var(--font-sans);
     overscroll-behavior-y: none;
   }
+  /* Tight grotesque display, factory-style negative tracking on big type */
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    font-feature-settings: "ss01", "ss02";
+    letter-spacing: -0.02em;
+  }
+  ::selection {
+    background: var(--foreground);
+    color: var(--background);
   }
   /* Honor reduced-motion preference everywhere */
   @media (prefers-reduced-motion: reduce) {
@@ -144,29 +163,48 @@
 
 /* ---- Craft utilities --------------------------------------------------- */
 
-/* Crisp pixel-art scaling for sprites / mascot / pixel icons */
+/* Crisp pixel-art scaling for sprites / mascot / pixel glyphs */
 @utility pixelated {
   image-rendering: pixelated;
   image-rendering: crisp-edges;
 }
 
-/* Subtle photographic-grain dither overlay (use on dark hero surfaces) */
-@utility grain {
-  position: relative;
-}
-@utility grain-overlay {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.06;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+/* Blueprint dot-grid plate — the graph-paper backdrop behind every figure */
+@utility dot-grid {
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
 }
 
-/* Hairline grid background, Swiss-style — for section dividers */
+/* Finer dot-grid for tight figure interiors */
+@utility dot-grid-fine {
+  background-image: radial-gradient(var(--grid-dot) 0.8px, transparent 1.1px);
+  background-size: 14px 14px;
+}
+
+/* Hairline ruled grid (engineering paper) — for hero plate */
 @utility grid-lines {
   background-image:
     linear-gradient(to right, var(--border) 1px, transparent 1px),
     linear-gradient(to bottom, var(--border) 1px, transparent 1px);
   background-size: 64px 64px;
+}
+
+/* The signature ░ shade row used as a section divider (see ShadeDivider.tsx) */
+@utility shade-row {
+  color: var(--shade);
+  font-family: var(--font-mono);
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* Subtle photographic-grain dither overlay (very low; dark plates only) */
+@utility grain-overlay {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
