@@ -26,6 +26,34 @@ export function clearAdminToken(): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Usage dashboard types (mirrors worker/usage.ts — kept in sync manually)
+// ---------------------------------------------------------------------------
+
+export type UsagePeriod = "day" | "month" | "total";
+export type UsageSource = "measured" | "analytics" | "unconfigured";
+
+export interface UsageServiceResult {
+  key: string;
+  label: string;
+  limit: number | null;
+  unit: string;
+  period: UsagePeriod;
+  used: number | null;
+  pct: number | null;
+  source: UsageSource;
+  note?: string;
+  docUrl: string;
+}
+
+export interface UsageData {
+  generatedAt: string;
+  asOf: string;
+  services: UsageServiceResult[];
+}
+
+// ---------------------------------------------------------------------------
+
 export interface AdminSpace {
   code: string;
   name: string;
@@ -96,5 +124,8 @@ export const adminApi = {
   },
   wipe(): Promise<{ spaces: number; purged: number }> {
     return call("/api/admin/wipe", { method: "POST" });
+  },
+  getUsage(): Promise<UsageData> {
+    return call<UsageData>("/api/admin/usage");
   },
 };

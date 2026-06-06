@@ -26,7 +26,13 @@ import { CaptureSheet } from "@/components/space/CaptureSheet";
 import { MomentControl } from "@/components/space/MomentControl";
 import { MomentCountdown } from "@/components/space/MomentCountdown";
 import { MomentViewer } from "@/components/space/MomentViewer";
-import { RecapReel } from "@/components/space/RecapReel";
+import { RecapReel, type ExportRequest } from "@/components/space/RecapReel";
+import { RecapExportStatus } from "@/components/space/RecapExportStatus";
+import {
+  renderRecapVideo,
+  type ExportPhase,
+  type ExportResult,
+} from "@/lib/recapExport";
 import { ShareDialog } from "@/components/space/ShareDialog";
 import { ImageLightbox } from "@/components/space/ImageLightbox";
 
@@ -75,6 +81,93 @@ export default function Space() {
   const [viewer, setViewer] = useState<MediaMeta[] | null>(null);
   const [lightbox, setLightbox] = useState<MediaMeta | null>(null);
   const [countdownDone, setCountdownDone] = useState<string | null>(null);
+
+  // Recap export lives HERE (not in the reel) so it survives the reel closing —
+  // e.g. tapping past the last frame — and still surfaces its result + a toast.
+  const [expPhase, setExpPhase] = useState<ExportPhase>("idle");
+  const [expProgress, setExpProgress] = useState(0);
+  const [expResult, setExpResult] = useState<ExportResult | null>(null);
+
+  const startExport = useCallback(
+    async (req: ExportRequest) => {
+      if (expPhase === "rendering") return;
+      // Best-effort: ask for notification permission so we can ping when ready.
+      try {
+        if ("Notification" in window && Notification.permission === "default") {
+          void Notification.requestPermission().catch(() => undefined);
+        }
+      } catch {
+        /* ignore */
+      }
+      setExpResult((r) => {
+        if (r) URL.revokeObjectURL(r.url);
+        return null;
+      });
+      setExpPhase("rendering");
+      setExpProgress(0);
+      try {
+        let out: ExportResult | null = null;
+        const server = await api.requestServerRecap(code);
+        if (server.mode === "server") {
+          const blob = await fetch(server.url).then((r) => r.blob());
+          URL.revokeObjectURL(server.url);
+          out = { url: URL.createObjectURL(blob), blob, filename: "vantage-recap.mp4" };
+        } else {
+          const rendered = await renderRecapVideo(
+            code,
+            sock.space?.name ?? "Vantage",
+            sock.wall,
+            {
+              music: req.music,
+              style: req.style,
+              variation: req.variation,
+              seed: req.seed,
+              onProgress: setExpProgress,
+            },
+          );
+          if (rendered)
+            out = {
+              url: URL.createObjectURL(rendered.blob),
+              blob: rendered.blob,
+              filename: rendered.filename,
+            };
+        }
+        if (out) {
+          setExpResult(out);
+          setExpPhase("ready");
+          toast({
+            title: "Your recap is ready",
+            description: "Save it to your gallery or download it.",
+            tone: "success",
+          });
+          try {
+            if ("Notification" in window && Notification.permission === "granted" && document.hidden) {
+              new Notification("Vantage recap ready", {
+                body: "Tap to save it to your gallery.",
+              });
+            }
+          } catch {
+            /* ignore */
+          }
+        } else {
+          setExpPhase("idle");
+          toast({ title: "Couldn't render the recap", tone: "error" });
+        }
+      } catch {
+        setExpPhase("idle");
+        toast({ title: "Recap render failed", description: "Please try again.", tone: "error" });
+      }
+    },
+    [expPhase, code, sock.space, sock.wall, toast],
+  );
+
+  const dismissExport = useCallback(() => {
+    setExpResult((r) => {
+      if (r) URL.revokeObjectURL(r.url);
+      return null;
+    });
+    setExpPhase("idle");
+  }, []);
 
   const joinUrl = useMemo(() => {
     if (sock.space) return `${location.origin}/join/${sock.space.code}`;
@@ -315,8 +408,20 @@ export default function Space() {
           spaceName={sock.space?.name ?? "Vantage"}
           media={sock.wall}
           onClose={() => setRecapOpen(false)}
+          onExport={startExport}
+          exportPhase={expPhase}
+          exportProgress={expProgress}
         />
       )}
+
+      {/* Export status + result — outside the reel so a render survives it closing */}
+      <RecapExportStatus
+        phase={expPhase}
+        progress={expProgress}
+        result={expResult}
+        reelOpen={recapOpen}
+        onDismiss={dismissExport}
+      />
 
       {lightbox && (
         <ImageLightbox

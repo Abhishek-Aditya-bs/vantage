@@ -18,6 +18,7 @@ import { verifyTurnstile } from "./turnstile";
 import { moderateImage } from "./moderation";
 import { serverRecap, serverRenderAvailable } from "./render";
 import { isAdminEmail, createOtp, verifyOtp, issueAdminToken, verifyAdminToken } from "./admin";
+import { buildUsageResponse } from "./usage";
 import { sendEmail, otpEmail } from "./email";
 import { securityHeaders, clientIp } from "./security";
 import { checkRate } from "./rate-limiter";
@@ -375,6 +376,41 @@ app.get("/api/admin/spaces", async (c) => {
     spaces: list,
     totals: { spaces: rows.length, photos: totalPhotos, live: totalLive, bytes: totalBytes, members: totalMembers },
   });
+});
+
+/** Free-tier usage snapshot — measured values + optional CF Analytics data. */
+app.get("/api/admin/usage", async (c) => {
+  if (!(await adminAuth(c))) return c.json({ error: "Unauthorized" }, 401);
+
+  const db = drizzle(c.env.DB);
+  const rows = await db.select().from(spaces);
+
+  let totalBytes = 0;
+  let totalMedia = 0;
+  let totalMembers = 0;
+  for (const row of rows) {
+    try {
+      const r = await callRoom(c.env, row.code, "/stats");
+      if (r.ok) {
+        const stats = (await r.json()) as RoomStats;
+        totalBytes += stats.bytes;
+        totalMedia += stats.mediaCount;
+        totalMembers += stats.memberCount;
+      }
+    } catch {
+      /* DO unreachable — skip */
+    }
+  }
+
+  const response = await buildUsageResponse(
+    totalBytes,
+    rows.length,
+    totalMedia,
+    totalMembers,
+    c.env.CF_API_TOKEN,
+    c.env.CF_ACCOUNT_ID,
+  );
+  return c.json(response);
 });
 
 /** Delete one space (purge its DO + remove from the registry). */

@@ -46,6 +46,18 @@ export interface AppEnv extends Omit<Env, "STORAGE_MODE" | "RENDER_MODE"> {
   ADMIN_PASSCODE?: string;
   /** Resend API key — enables emailing the admin OTP. `wrangler secret put RESEND_API_KEY`. */
   RESEND_API_KEY?: string;
+  /**
+   * Cloudflare API token with Analytics:Read permission — enables live Workers /
+   * DO / D1 request counts in the admin usage dashboard.
+   * `wrangler secret put CF_API_TOKEN`
+   */
+  CF_API_TOKEN?: string;
+  /**
+   * Cloudflare Account ID — required alongside CF_API_TOKEN for the GraphQL
+   * Analytics API queries.  Find it in the Cloudflare dashboard sidebar.
+   * `wrangler secret put CF_ACCOUNT_ID`
+   */
+  CF_ACCOUNT_ID?: string;
 
   // ---- Phase-2 bindings (optional; declared in wrangler.jsonc when enabled) -
   /** R2 bucket for media when STORAGE_MODE=r2. Bind as `MEDIA_BUCKET`. */

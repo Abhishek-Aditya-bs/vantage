@@ -3,7 +3,7 @@
  * address) with a master-passcode fallback. Lists every space with live/photo/
  * size stats and lets the admin delete one or wipe everything.
  */
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { RefreshCw, Trash2, LogOut, ShieldAlert } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
 import { Mascot } from "@/components/brand/Mascot";
+import { UsageBar } from "@/components/admin/UsageBar";
 import {
   adminApi,
   getAdminToken,
   clearAdminToken,
   AdminError,
   type AdminData,
+  type UsageData,
 } from "@/lib/adminApi";
 
 function fmtBytes(n: number): string {
@@ -44,9 +46,14 @@ export default function Admin() {
   const [emailSent, setEmailSent] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  // dashboard
+  // dashboard — spaces
   const [data, setData] = useState<AdminData | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // dashboard — usage
+  const [usage, setUsage] = useState<UsageData | null>(null);
+  const [usageLoading, setUsageLoading] = useState(false);
+  const usageIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -63,6 +70,46 @@ export default function Admin() {
       setLoading(false);
     }
   }, [toast]);
+
+  const loadUsage = useCallback(async () => {
+    if (document.hidden) return; // skip while tab is not visible
+    setUsageLoading(true);
+    try {
+      setUsage(await adminApi.getUsage());
+    } catch (e) {
+      if (e instanceof AdminError && e.status === 401) {
+        clearAdminToken();
+        setAuthed(false);
+      }
+      // Non-fatal: keep stale data; don't show a noisy toast for every auto-refresh
+    } finally {
+      setUsageLoading(false);
+    }
+  }, []);
+
+  // Initial load + auto-refresh every 60 s; pause when tab is hidden.
+  useEffect(() => {
+    if (!authed) return;
+    void loadUsage();
+
+    const INTERVAL_MS = 60_000;
+    usageIntervalRef.current = setInterval(() => {
+      void loadUsage();
+    }, INTERVAL_MS);
+
+    const onVisibilityChange = () => {
+      if (!document.hidden) void loadUsage();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      if (usageIntervalRef.current !== null) {
+        clearInterval(usageIntervalRef.current);
+        usageIntervalRef.current = null;
+      }
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [authed, loadUsage]);
 
   useEffect(() => {
     if (authed) load();
@@ -239,6 +286,63 @@ export default function Admin() {
             </div>
           ))}
         </dl>
+
+        {/* ── Free-tier usage ─────────────────────────────────────────── */}
+        <div className="mt-8 rounded-lg border border-border bg-card">
+          {/* section header */}
+          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-3">
+            <div className="flex items-center gap-3">
+              <p className="font-mono text-[0.65rem] uppercase tracking-[0.18em] text-muted-foreground">
+                Free-tier usage
+              </p>
+              {usage && (
+                <span className="font-mono text-[0.6rem] text-muted-foreground/50">
+                  limits as of {usage.asOf}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {usage && (
+                <span className="font-mono text-[0.6rem] text-muted-foreground/50 hidden sm:block">
+                  live {new Date(usage.generatedAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => void loadUsage()}
+                disabled={usageLoading}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 font-mono text-[0.65rem] uppercase tracking-[0.1em] text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 transition-colors"
+                aria-label="Refresh usage data"
+              >
+                <RefreshCw className={`size-3 ${usageLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {/* service rows */}
+          <div className="divide-y divide-border px-5">
+            {!usage && usageLoading && (
+              <p className="py-8 text-center font-mono text-sm text-muted-foreground">loading…</p>
+            )}
+            {usage?.services.map((svc) => (
+              <UsageBar key={svc.key} service={svc} />
+            ))}
+            {usage && (
+              <p className="py-2 font-mono text-[0.58rem] text-muted-foreground/40 leading-relaxed">
+                auto-refreshes every 60 s · pauses when tab is hidden ·{" "}
+                <a
+                  href="https://developers.cloudflare.com/workers/platform/pricing/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-muted-foreground underline underline-offset-2"
+                >
+                  Cloudflare pricing docs
+                </a>
+              </p>
+            )}
+          </div>
+        </div>
 
         {/* table */}
         <div className="mt-8 overflow-x-auto rounded-lg border border-border">
