@@ -90,7 +90,12 @@ async function render(manifest) {
     const args = ["-y"];
     for (const p of paths) args.push("-loop", "1", "-t", String(frameSec), "-i", p);
     args.push("-filter_complex", buildFilter(paths.length, W, H, frameSec));
-    args.push("-map", "[v]", "-r", String(FPS), "-pix_fmt", "yuv420p", "-movflags", "+faststart", out);
+    // High-quality H.264 (well below the visible-artifact threshold), web-streamable.
+    args.push(
+      "-map", "[v]", "-r", String(FPS),
+      "-c:v", "libx264", "-preset", "medium", "-crf", "19", "-profile:v", "high",
+      "-pix_fmt", "yuv420p", "-movflags", "+faststart", out,
+    );
 
     await run("ffmpeg", args);
     return await readFile(out);
