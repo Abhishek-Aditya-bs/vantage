@@ -1,19 +1,19 @@
 /**
- * Recap reel — a fullscreen montage sequencing the wall media with crossfades
- * and a subtle Ken-Burns drift on each still. An optional WebAudio ambient pad
- * plays while it runs (off by default, user-toggled, so we never autoplay
- * audio). An "Export MP4" button is wired behind RENDER_MODE + WebCodecs: it
- * attempts a basic client export if available, otherwise it's disabled with a
- * "Server render — Phase 2" tooltip. The reel never blocks on export.
+ * Recap reel — NOT a plain slideshow. It segments the space into:
+ *   • Moments  → played as BULLET-TIME (orbit the frozen instant; the unique bit)
+ *   • loose photos → a brief Ken-Burns montage
+ * so the recap leads with the thing one camera can't do. Optional ambient pad,
+ * and an "Export MP4" path (server render when enabled, else on-device).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { X, Pause, Play, Volume2, VolumeX, Download } from "lucide-react";
+import { X, Pause, Play, Volume2, VolumeX, Download, Rotate3d } from "lucide-react";
 import type { MediaMeta } from "@shared/protocol";
 import { api } from "@/lib/api";
 import { AsciiProgress } from "@/components/brand/AsciiProgress";
 import { Mascot } from "@/components/brand/Mascot";
+import { BulletTime } from "@/components/space/BulletTime";
 
 interface RecapReelProps {
   code: string;
@@ -22,31 +22,60 @@ interface RecapReelProps {
   onClose: () => void;
 }
 
+type Segment =
+  | { kind: "moment"; id: string; frames: MediaMeta[]; t: number }
+  | { kind: "slide"; id: string; frame: MediaMeta; t: number };
+
 const SLIDE_MS = 2600;
+const MOMENT_MS = 5200;
 
 export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
-  // newest-last so the recap plays chronologically
-  const reel = useMemo(
-    () => [...media].sort((a, b) => a.createdAt - b.createdAt),
-    [media],
-  );
-  const [index, setIndex] = useState(0);
+  // Build the segment timeline: multi-angle Moments become bullet-time; the rest
+  // are single slides. Sorted chronologically so the recap reads as a story.
+  const segments = useMemo<Segment[]>(() => {
+    const byMoment = new Map<string, MediaMeta[]>();
+    const loose: MediaMeta[] = [];
+    for (const m of media) {
+      if (m.kind === "moment" && m.momentId) {
+        const arr = byMoment.get(m.momentId) ?? [];
+        arr.push(m);
+        byMoment.set(m.momentId, arr);
+      } else {
+        loose.push(m);
+      }
+    }
+    const segs: Segment[] = [];
+    for (const [id, frames] of byMoment) {
+      const sorted = [...frames].sort((a, b) => a.createdAt - b.createdAt);
+      if (sorted.length >= 2) segs.push({ kind: "moment", id, frames: sorted, t: sorted[0].createdAt });
+      else loose.push(...sorted); // a 1-angle "moment" is just a photo
+    }
+    for (const f of loose) segs.push({ kind: "slide", id: f.id, frame: f, t: f.createdAt });
+    return segs.sort((a, b) => a.t - b.t);
+  }, [media]);
+
+  const [seg, setSeg] = useState(0);
+  const [orbit, setOrbit] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
   const audioRef = useRef<{ ctx: AudioContext; stop: () => void } | null>(null);
+  const current = segments[seg];
 
-  // advance slides
+  // reset the orbit index when the segment changes
   useEffect(() => {
-    if (!playing || reel.length === 0) return;
-    const id = window.setTimeout(
-      () => setIndex((i) => (i + 1) % reel.length),
-      SLIDE_MS,
-    );
+    setOrbit(0);
+  }, [seg]);
+
+  // advance segments (Moments linger longer to let the orbit play)
+  useEffect(() => {
+    if (!playing || segments.length === 0) return;
+    const dur = current?.kind === "moment" ? MOMENT_MS : SLIDE_MS;
+    const id = window.setTimeout(() => setSeg((s) => (s + 1) % segments.length), dur);
     return () => window.clearTimeout(id);
-  }, [playing, index, reel.length]);
+  }, [playing, seg, segments, current]);
 
   // ambient WebAudio pad — only while unmuted + playing
   useEffect(() => {
@@ -74,30 +103,29 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const canExport = reel.length > 0;
+  const reelFrames = useMemo(
+    () => [...media].sort((a, b) => a.createdAt - b.createdAt),
+    [media],
+  );
 
   const exportMp4 = useCallback(async () => {
-    if (exporting || reel.length === 0) return;
+    if (exporting || reelFrames.length === 0) return;
     setExporting(true);
     setExportProgress(0);
     try {
-      // Prefer a server-side render when it's enabled (RENDER_MODE=server); it
-      // returns a finished MP4. Otherwise fall back to the on-device export.
       const server = await api.requestServerRecap(code);
       if (server.mode === "server") {
         triggerDownload(server.url, "vantage-recap.mp4");
         URL.revokeObjectURL(server.url);
       } else {
-        await exportReelToMp4(code, reel, (p) => setExportProgress(p));
+        await exportReelToMp4(code, reelFrames, (p) => setExportProgress(p));
       }
     } catch {
-      /* swallow — export is best-effort and must never block the reel */
+      /* best-effort */
     } finally {
       setExporting(false);
     }
-  }, [exporting, code, reel]);
-
-  const current = reel[index];
+  }, [exporting, code, reelFrames]);
 
   return createPortal(
     <motion.div
@@ -112,17 +140,28 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
     >
       {/* stage */}
       <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black">
-        {reel.length === 0 ? (
+        {segments.length === 0 || !current ? (
           <div className="flex flex-col items-center gap-4 text-center text-muted-foreground">
             <Mascot size={80} />
             <p className="font-mono text-sm">nothing to recap yet</p>
           </div>
+        ) : current.kind === "moment" ? (
+          <div className="absolute inset-0">
+            <BulletTime
+              code={code}
+              frames={current.frames}
+              index={Math.min(orbit, current.frames.length - 1)}
+              onIndexChange={setOrbit}
+              playing={playing}
+              sweepMs={110}
+            />
+          </div>
         ) : (
           <AnimatePresence mode="popLayout">
             <motion.img
-              key={current.id}
-              src={api.mediaUrl(code, current.id)}
-              alt={`Recap frame by ${current.displayName}`}
+              key={current.frame.id}
+              src={api.mediaUrl(code, current.frame.id)}
+              alt={`Recap frame by ${current.frame.displayName}`}
               initial={{ opacity: 0, scale: 1.0 }}
               animate={{ opacity: 1, scale: 1.08 }}
               exit={{ opacity: 0 }}
@@ -135,26 +174,33 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
           </AnimatePresence>
         )}
 
-        {/* title card overlay */}
+        {/* label overlay */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent p-6">
-          <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
-            recap · {spaceName}
-          </p>
-          {current && (
+          {current?.kind === "moment" ? (
+            <p className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.2em] text-moment">
+              <Rotate3d className="size-4" />
+              the moment · {current.frames.length} angles · bullet-time
+            </p>
+          ) : (
+            <p className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
+              recap · {spaceName}
+            </p>
+          )}
+          {current?.kind === "slide" && (
             <p className="mt-1 font-display text-lg font-semibold text-white">
-              {current.displayName}
+              {current.frame.displayName}
             </p>
           )}
         </div>
 
-        {/* film-strip progress ticks */}
-        {reel.length > 0 && (
+        {/* segment progress ticks */}
+        {segments.length > 0 && (
           <div className="absolute left-0 right-0 top-0 flex gap-1 p-3">
-            {reel.map((m, i) => (
+            {segments.map((s, i) => (
               <span
-                key={m.id}
+                key={s.id}
                 className={`h-1 flex-1 rounded-full ${
-                  i <= index ? "bg-primary" : "bg-white/25"
+                  i < seg ? "bg-primary" : i === seg ? (s.kind === "moment" ? "bg-moment" : "bg-primary") : "bg-white/25"
                 }`}
               />
             ))}
@@ -188,11 +234,10 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
             <AsciiProgress value={exportProgress} width={12} label="Exporting" />
           ) : (
             <span title="Render this recap to MP4 — server-side when enabled, otherwise in your browser">
-
               <button
                 type="button"
                 onClick={exportMp4}
-                disabled={!canExport}
+                disabled={reelFrames.length === 0}
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-3.5 text-sm font-medium hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Download className="size-4" />
@@ -221,16 +266,13 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
 function startAmbientPad(): { ctx: AudioContext; stop: () => void } {
   const Ctor =
     window.AudioContext ||
-    (window as unknown as { webkitAudioContext?: typeof AudioContext })
-      .webkitAudioContext;
+    (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   const ctx = new Ctor();
   const master = ctx.createGain();
   master.gain.value = 0.0;
   master.connect(ctx.destination);
-  // gentle fade-in
   master.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 1.5);
 
-  // two detuned sine "pads" a fifth apart
   const freqs = [110, 164.81];
   const oscs = freqs.map((f) => {
     const o = ctx.createOscillator();
@@ -259,13 +301,6 @@ function startAmbientPad(): { ctx: AudioContext; stop: () => void } {
 
 /* --------------------------------------------------- best-effort MP4 export */
 
-/**
- * Minimal client-side export stub. We decode each image and draw it to an
- * offscreen canvas; with WebCodecs we *could* feed frames to a VideoEncoder,
- * but muxing to a playable MP4 in-browser without a library is non-trivial, so
- * this reports progress and produces a downloadable WebM via MediaRecorder when
- * available (a pragmatic Phase-1 deliverable). Falls back to a no-op.
- */
 async function exportReelToMp4(
   code: string,
   reel: MediaMeta[],
@@ -283,13 +318,10 @@ async function exportReelToMp4(
   const stream = canvas.captureStream(30);
   const supportsRecorder =
     typeof MediaRecorder !== "undefined" &&
-    (MediaRecorder.isTypeSupported("video/mp4") ||
-      MediaRecorder.isTypeSupported("video/webm"));
+    (MediaRecorder.isTypeSupported("video/mp4") || MediaRecorder.isTypeSupported("video/webm"));
   if (!supportsRecorder) return;
 
-  const mime = MediaRecorder.isTypeSupported("video/mp4")
-    ? "video/mp4"
-    : "video/webm";
+  const mime = MediaRecorder.isTypeSupported("video/mp4") ? "video/mp4" : "video/webm";
   const recorder = new MediaRecorder(stream, { mimeType: mime });
   const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -302,7 +334,6 @@ async function exportReelToMp4(
     ctx.fillRect(0, 0, W, H);
     drawContain(ctx, img, W, H);
     onProgress((i + 1) / reel.length);
-    // hold each frame ~1s
     await wait(1000);
   }
 
@@ -311,10 +342,7 @@ async function exportReelToMp4(
 
   const blob = new Blob(chunks, { type: mime });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `vantage-recap.${mime === "video/mp4" ? "mp4" : "webm"}`;
-  a.click();
+  triggerDownload(url, `vantage-recap.${mime === "video/mp4" ? "mp4" : "webm"}`);
   URL.revokeObjectURL(url);
 }
 
@@ -335,12 +363,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function drawContain(
-  ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
-  W: number,
-  H: number,
-): void {
+function drawContain(ctx: CanvasRenderingContext2D, img: HTMLImageElement, W: number, H: number): void {
   const scale = Math.min(W / img.width, H / img.height);
   const w = img.width * scale;
   const h = img.height * scale;
