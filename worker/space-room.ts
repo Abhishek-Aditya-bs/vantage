@@ -127,6 +127,7 @@ export class SpaceRoom extends DurableObject<AppEnv> {
       if (path === "/ws") return this.handleUpgrade(request);
       if (path === "/init") return this.json(await this.init(request));
       if (path === "/public") return this.publicInfoResponse();
+      if (path === "/stats") return this.json(this.stats());
       if (path === "/join") return this.json(await this.join(request));
       if (path === "/media-list") return this.json({ media: this.wallSnapshot() });
       if (path === "/media" && request.method === "POST") return this.json(await this.addMedia(request));
@@ -434,6 +435,38 @@ export class SpaceRoom extends DurableObject<AppEnv> {
   private publicInfoResponse(): Response {
     if (!this.exists()) return this.json({ error: "404 no such space" }, 404);
     return this.json(this.publicInfo());
+  }
+
+  /** Admin stats snapshot: totals + how many members are present right now. */
+  private stats(): {
+    code: string;
+    name: string;
+    createdAt: number;
+    memberCount: number;
+    liveCount: number;
+    mediaCount: number;
+    bytes: number;
+  } {
+    const m = this.ctx.storage.sql
+      .exec<{ name: string; code: string; created_at: number }>(
+        `SELECT name, code, created_at FROM meta WHERE k='main'`,
+      )
+      .toArray()[0];
+    const present = new Set<string>();
+    for (const s of this.ctx.getWebSockets()) {
+      const a = s.deserializeAttachment() as Attachment | null;
+      if (a) present.add(a.memberId);
+    }
+    const ms = this.mediaStats();
+    return {
+      code: m?.code ?? "",
+      name: m?.name ?? "",
+      createdAt: m?.created_at ?? 0,
+      memberCount: this.memberCount(),
+      liveCount: present.size,
+      mediaCount: ms.count,
+      bytes: ms.bytes,
+    };
   }
 
   // --------------------------------------------------------------- transport

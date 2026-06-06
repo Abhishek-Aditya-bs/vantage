@@ -17,6 +17,8 @@ import { issueToken, verifyToken, DEV_JWT_SECRET } from "./auth";
 import { verifyTurnstile } from "./turnstile";
 import { moderateImage } from "./moderation";
 import { serverRecap, serverRenderAvailable } from "./render";
+import { isAdminEmail, createOtp, verifyOtp, issueAdminToken, verifyAdminToken } from "./admin";
+import { sendEmail, otpEmail } from "./email";
 import { securityHeaders, clientIp } from "./security";
 import { checkRate } from "./rate-limiter";
 import { spaces } from "./db/schema";
@@ -294,6 +296,116 @@ app.get("/api/spaces/:code/ws", async (c) => {
       "X-Avatar-Seed": claims.avatarSeed,
     },
   });
+});
+
+// ====================================================== admin dashboard (OTP)
+type RoomStats = { memberCount: number; liveCount: number; mediaCount: number; bytes: number };
+
+/** Bearer admin-JWT guard → admin email, or null. */
+async function adminAuth(c: {
+  req: { header: (k: string) => string | undefined };
+  env: AppEnv;
+}): Promise<string | null> {
+  const token = c.req.header("Authorization")?.replace(/^Bearer\s+/i, "");
+  if (!token) return null;
+  return verifyAdminToken(c.env, token);
+}
+
+/** Step 1 — request an OTP (emailed to the allowlisted admin, if Resend is set). */
+app.post("/api/admin/login/request", async (c) => {
+  const ip = clientIp(c);
+  if (!(await checkRate(c.env, `adminotp:${ip}`, "adminotp", 6, 10 * 60_000)))
+    return c.json({ error: "Too many attempts. Try again later." }, 429);
+  const body = (await c.req.json().catch(() => ({}))) as { email?: string };
+  const email = (body.email ?? "").trim();
+  let emailSent = false;
+  if (isAdminEmail(c.env, email)) {
+    const code = await createOtp(c.env, email);
+    if (c.env.RESEND_API_KEY) emailSent = await sendEmail(c.env, { to: email, ...otpEmail(code) });
+  }
+  // Generic response; `emailSent` only hints whether to expect a code by email.
+  return c.json({ ok: true, emailSent });
+});
+
+/** Step 2 — verify the OTP (or master passcode) → admin session token. */
+app.post("/api/admin/login/verify", async (c) => {
+  const ip = clientIp(c);
+  if (!(await checkRate(c.env, `adminverify:${ip}`, "adminverify", 10, 10 * 60_000)))
+    return c.json({ error: "Too many attempts. Try again later." }, 429);
+  const body = (await c.req.json().catch(() => ({}))) as { email?: string; code?: string };
+  const email = (body.email ?? "").trim();
+  const code = (body.code ?? "").trim();
+  if (!isAdminEmail(c.env, email)) return c.json({ error: "Not authorized." }, 401);
+  if (!(await verifyOtp(c.env, email, code))) return c.json({ error: "Invalid or expired code." }, 401);
+  const token = await issueAdminToken(c.env, email);
+  return c.json({ token });
+});
+
+/** Dashboard data — every space with live/photo/size stats + totals. */
+app.get("/api/admin/spaces", async (c) => {
+  if (!(await adminAuth(c))) return c.json({ error: "Unauthorized" }, 401);
+  const db = drizzle(c.env.DB);
+  const rows = await db.select().from(spaces);
+  const list: Array<{
+    code: string; name: string; status: string; createdAt: number; lastActiveAt: number;
+    members: number; live: number; photos: number; bytes: number;
+  }> = [];
+  let totalPhotos = 0, totalLive = 0, totalBytes = 0, totalMembers = 0;
+  for (const row of rows) {
+    let stats: RoomStats | null = null;
+    try {
+      const r = await callRoom(c.env, row.code, "/stats");
+      if (r.ok) stats = (await r.json()) as RoomStats;
+    } catch {
+      /* DO unreachable → null stats */
+    }
+    totalPhotos += stats?.mediaCount ?? 0;
+    totalLive += stats?.liveCount ?? 0;
+    totalBytes += stats?.bytes ?? 0;
+    totalMembers += stats?.memberCount ?? 0;
+    list.push({
+      code: row.code, name: row.name, status: row.status,
+      createdAt: row.createdAt, lastActiveAt: row.lastActiveAt,
+      members: stats?.memberCount ?? 0, live: stats?.liveCount ?? 0,
+      photos: stats?.mediaCount ?? 0, bytes: stats?.bytes ?? 0,
+    });
+  }
+  list.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+  return c.json({
+    spaces: list,
+    totals: { spaces: rows.length, photos: totalPhotos, live: totalLive, bytes: totalBytes, members: totalMembers },
+  });
+});
+
+/** Delete one space (purge its DO + remove from the registry). */
+app.delete("/api/admin/spaces/:code", async (c) => {
+  if (!(await adminAuth(c))) return c.json({ error: "Unauthorized" }, 401);
+  const code = c.req.param("code").toUpperCase();
+  try {
+    await callRoom(c.env, code, "/purge");
+  } catch {
+    /* best effort */
+  }
+  await drizzle(c.env.DB).delete(spaces).where(eq(spaces.code, code));
+  return c.json({ ok: true });
+});
+
+/** Nuke everything (purge all DOs + clear the registry). */
+app.post("/api/admin/wipe", async (c) => {
+  if (!(await adminAuth(c))) return c.json({ error: "Unauthorized" }, 401);
+  const db = drizzle(c.env.DB);
+  const rows = await db.select({ code: spaces.code }).from(spaces);
+  let purged = 0;
+  for (const { code } of rows) {
+    try {
+      await callRoom(c.env, code, "/purge");
+      purged += 1;
+    } catch {
+      /* keep going */
+    }
+  }
+  await db.delete(spaces);
+  return c.json({ spaces: rows.length, purged });
 });
 
 // -------------------------------------------------------------- admin reset

@@ -10,6 +10,7 @@ const Landing = lazy(() => import("@/routes/Landing"));
 const Create = lazy(() => import("@/routes/Create"));
 const Join = lazy(() => import("@/routes/Join"));
 const Space = lazy(() => import("@/routes/Space"));
+const Admin = lazy(() => import("@/routes/Admin"));
 const NotFound = lazy(() => import("@/routes/NotFound"));
 
 /** Full-page suspense fallback — the iris-shutter loading spinner. */
@@ -38,6 +39,7 @@ export default function App() {
           <Route path="/create" element={<Create />} />
           <Route path="/s/:code" element={<Space />} />
           <Route path="/join/:code" element={<Join />} />
+          <Route path="/admin" element={<Admin />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
