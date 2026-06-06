@@ -28,11 +28,15 @@
     "bindings": [
       { "name": "SPACE_ROOM", "class_name": "SpaceRoom" },
       { "name": "RATE_LIMITER", "class_name": "RateLimiter" }
+      // PHASE-2 / server render — uncomment with the container (needs Workers Paid):
+      // , { "name": "RECAP_RENDERER", "class_name": "RecapRenderer" }
     ]
   },
 
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["SpaceRoom", "RateLimiter"] }
+    // PHASE-2 / server render — register the container-backed DO class:
+    // , { "tag": "v2", "new_classes": ["RecapRenderer"] }
   ],
 
   "d1_databases": [
@@ -48,7 +52,24 @@
     { "binding": "KV", "id": "55d3b00d8bcb4959a016c83e84ba2cf1" }
   ],
 
+  // PHASE-2 / R2 storage — set "STORAGE_MODE": "r2" above, then uncomment. Enabling R2
+  // requires a payment method even on its free tier (Cloudflare error 10042):
+  // "r2_buckets": [
+  //   { "binding": "MEDIA_BUCKET", "bucket_name": "vantage-media" }
+  // ],
+
+  // PHASE-2 / server render — the ffmpeg recap Container (needs the Workers Paid plan).
+  // See containers/recap-render/README.md for the full enable checklist:
+  // "containers": [
+  //   {
+  //     "class_name": "RecapRenderer",
+  //     "image": "./containers/recap-render/Dockerfile",
+  //     "max_instances": 2
+  //   }
+  // ],
+
   // Workers AI — used for optional image moderation within the 10k neurons/day free budget.
+  // Enable by setting "MODERATION_MODE": "on" in vars (optionally "MODERATION_MODEL": "<id>").
   "ai": { "binding": "AI" },
 
   // Cron: nightly cleanup of inactive/expired spaces (frees DO storage). 1 of 5 free triggers.

@@ -12,7 +12,6 @@ import { AnimatePresence, motion } from "motion/react";
 import { X, Pause, Play, Volume2, VolumeX, Download } from "lucide-react";
 import type { MediaMeta } from "@shared/protocol";
 import { api } from "@/lib/api";
-import { renderMode, hasWebCodecs } from "@/lib/config";
 import { AsciiProgress } from "@/components/brand/AsciiProgress";
 import { Mascot } from "@/components/brand/Mascot";
 
@@ -75,23 +74,28 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const canExport = renderMode() === "client" && hasWebCodecs();
+  const canExport = reel.length > 0;
 
   const exportMp4 = useCallback(async () => {
-    if (!canExport || exporting) return;
+    if (exporting || reel.length === 0) return;
     setExporting(true);
     setExportProgress(0);
     try {
-      // Basic best-effort export: draw each frame to a canvas; if VideoEncoder
-      // is present we encode, otherwise we bail. Kept intentionally light — a
-      // full muxed MP4 pipeline is Phase 2 work.
-      await exportReelToMp4(code, reel, (p) => setExportProgress(p));
+      // Prefer a server-side render when it's enabled (RENDER_MODE=server); it
+      // returns a finished MP4. Otherwise fall back to the on-device export.
+      const server = await api.requestServerRecap(code);
+      if (server.mode === "server") {
+        triggerDownload(server.url, "vantage-recap.mp4");
+        URL.revokeObjectURL(server.url);
+      } else {
+        await exportReelToMp4(code, reel, (p) => setExportProgress(p));
+      }
     } catch {
       /* swallow — export is best-effort and must never block the reel */
     } finally {
       setExporting(false);
     }
-  }, [canExport, exporting, code, reel]);
+  }, [exporting, code, reel]);
 
   const current = reel[index];
 
@@ -183,13 +187,8 @@ export function RecapReel({ code, spaceName, media, onClose }: RecapReelProps) {
           {exporting ? (
             <AsciiProgress value={exportProgress} width={12} label="Exporting" />
           ) : (
-            <span
-              title={
-                canExport
-                  ? "Encode this recap to MP4 in your browser"
-                  : "Server render — Phase 2"
-              }
-            >
+            <span title="Render this recap to MP4 — server-side when enabled, otherwise in your browser">
+
               <button
                 type="button"
                 onClick={exportMp4}
@@ -317,6 +316,13 @@ async function exportReelToMp4(
   a.download = `vantage-recap.${mime === "video/mp4" ? "mp4" : "webm"}`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function triggerDownload(url: string, filename: string): void {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
 }
 
 function loadImage(src: string): Promise<HTMLImageElement> {

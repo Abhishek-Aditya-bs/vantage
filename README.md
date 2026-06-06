@@ -68,11 +68,11 @@ R2 would be the obvious place to store photos — but enabling R2 requires a **p
 
 ## Tech stack
 
-**Frontend:** React 19 · Vite · TypeScript (strict) · Tailwind CSS v4 · shadcn-style primitives · `motion` · self-hosted Bricolage Grotesque / DM Sans / Space Mono · hand-authored pixel-art (mascot, avatars, iris shutter) and ASCII craft.
+**Frontend:** React 19 · Vite · TypeScript (strict) · Tailwind CSS v4 · shadcn-style primitives · `motion` · self-hosted Geist / EB Garamond / Geist Mono · hand-authored black-and-white SVG blueprint diagrams, a pixelated SVG-filter headline, and a pixel-art camera mark.
 **Edge:** Cloudflare Workers · Hono · Durable Objects (SQLite + Hibernation) · D1 · KV · Workers AI · Cron · `jose` · `aws4fetch` · Drizzle ORM · Zod (shared client/worker contract).
 **Tooling:** `@cloudflare/vite-plugin` (one dev server for SPA + Worker + DOs) · Wrangler · drizzle-kit.
 
-Design direction: **"Swiss Editorial + Lo-Fi Pixel,"** palette **"Darkroom Amber"** — deliberately engineered to avoid the indigo-gradient / glassmorphism / Inter "AI-slop" default.
+Design direction: a **strictly-monochrome technical reference manual** — tight Geist display, editorial serif body, monospace figure labels, dot-grid plates, `FIG_00x` rails and `░` dividers. Dark-primary; the light theme is its exact white-paper inverse. Deliberately engineered to avoid the indigo-gradient / glassmorphism / Inter "AI-slop" default. (Lineage: makingsoftware.com × factory.ai.)
 
 ---
 
@@ -111,16 +111,24 @@ Set in `wrangler.jsonc` (`vars`) or as secrets:
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `STORAGE_MODE` | `do` | `do` = media in Durable Object SQLite (free, no R2). `r2` = optional upgrade once R2 is enabled. |
-| `RENDER_MODE` | `client` | `client` = recap rendered on-device (free). `server` = Phase-2 ffmpeg container ($5 Workers Paid). |
-| `TURNSTILE_SITE_KEY` | test key | Replace with a real key (+ `TURNSTILE_SECRET`) to enforce Turnstile. |
+| `STORAGE_MODE` | `do` | `do` = media bytes in Durable Object SQLite (free, no R2). `r2` = R2 bucket (`MEDIA_BUCKET`). |
+| `RENDER_MODE` | `client` | `client` = recap rendered on-device (free). `server` = ffmpeg Container ($5 Workers Paid). |
+| `MODERATION_MODE` | `off` | `on` = screen each upload with Workers AI before storing. |
+| `MODERATION_MODEL` | resnet-50 | Optional Workers AI model id used when moderation is on. |
+| `TURNSTILE_SITE_KEY` | test key | Replace with a real key (+ `TURNSTILE_SECRET`) to enable Turnstile. |
+| `TURNSTILE_ENFORCE` | unset | `1` = strict mode (no fail-open on infra error; cross-check hostname/action). |
+| `TURNSTILE_SECRET` (secret) | unset | Real Turnstile secret. Present ⇒ Turnstile is enforced. |
+| `RENDER_SECRET` (secret) | unset | Shared secret guarding the render container endpoint (server render). |
 | `JWT_SECRET` (secret) | dev fallback | HMAC signing secret — **always set in production**. |
 
-### Roadmap / optional upgrades (all behind flags)
-- **Server-side recap render** — a Cloudflare Container running `ffmpeg`, triggered via Workflows/Queues (needs the $5 Workers Paid plan).
-- **R2 storage** — flip `STORAGE_MODE=r2` once R2 is enabled.
-- **Real Turnstile + custom domain** — for enforced bot protection and free WAF rate-limiting.
-- **Workers AI moderation** — enable LlamaGuard screening on uploads.
+### Phase 2 — built, behind flags
+
+All of the below is **implemented and type-checks/builds today**; it stays dormant until you flip the matching flag and (where noted) uncomment a binding in `wrangler.jsonc`. Defaults keep Vantage on the pure free tier.
+
+- **R2 storage** (`STORAGE_MODE=r2`) — `worker/storage.ts` provides a `MediaBlobStore` abstraction with DO-SQLite and R2 backends; the `SpaceRoom` DO already routes every put/get/delete + quota through it. Enable: uncomment the `r2_buckets` block, set the flag. (R2 needs a payment method even on its free tier — Cloudflare `10042`.)
+- **Server-side recap render** (`RENDER_MODE=server`) — a Cloudflare Container running `ffmpeg` (Ken-Burns + crossfades → MP4). The Worker dispatches via `worker/render.ts`; the client (`RecapReel`) auto-prefers the server MP4 and falls back to the on-device export. Full enable checklist: **`containers/recap-render/README.md`** (needs Workers Paid).
+- **Workers AI moderation** (`MODERATION_MODE=on`) — `worker/moderation.ts` screens uploads in the Worker before they hit the DO; fails open on any error/budget.
+- **Real Turnstile + strict enforcement** — set `TURNSTILE_SECRET` (real) to enforce; add `TURNSTILE_ENFORCE=1` for fail-closed + hostname/action checks. A free Cloudflare-managed custom domain additionally unlocks WAF rules and Bot Fight Mode.
 
 ---
 
@@ -132,20 +140,26 @@ vantage/
 │   ├── index.ts            # Hono gateway + routes + Cron + DO exports
 │   ├── space-room.ts       # SpaceRoom Durable Object (realtime + media + Moments)
 │   ├── rate-limiter.ts     # RateLimiter Durable Object (sliding window)
+│   ├── storage.ts          # MediaBlobStore abstraction — DO SQLite | R2  (Phase-2)
+│   ├── render.ts           # server recap dispatcher → render container       (Phase-2)
+│   ├── moderation.ts       # optional Workers AI upload screening             (Phase-2)
 │   ├── auth.ts             # capability-token JWTs (jose)
-│   ├── turnstile.ts        # Turnstile siteverify
+│   ├── turnstile.ts        # Turnstile siteverify (+ strict enforcement)
 │   ├── security.ts         # security headers / CORS
+│   ├── env.ts              # AppEnv + feature-flag accessors
 │   └── db/                 # Drizzle D1 schema + migrations
+├── containers/             # Phase-2 container assets (out of the default build)
+│   └── recap-render/       # ffmpeg recap service: Dockerfile · server.mjs · DO class
 ├── shared/                 # Zod contract shared by client + worker
 │   ├── protocol.ts         # REST + WebSocket message types
 │   └── constants.ts        # quotas, limits, timings
 ├── src/                    # React PWA (client)
 │   ├── routes/             # Landing, Create, Join, Space, NotFound
-│   ├── components/         # ui/ · brand/ · landing/ · space/
-│   ├── lib/                # api · useSpaceSocket · capture · pixel
-│   └── providers/          # theme
+│   ├── components/         # ui/ · brand/ · landing/ (figures) · space/
+│   ├── lib/                # api · useSpaceSocket · capture · pixel · config
+│   └── providers/          # theme (dark-primary)
 ├── public/                 # manifest, icons, _headers (CSP)
-└── wrangler.jsonc          # bindings, migrations, cron
+└── wrangler.jsonc          # bindings, migrations, cron (+ commented Phase-2 blocks)
 ```
 
 ---

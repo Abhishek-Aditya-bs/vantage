@@ -199,6 +199,31 @@ export const api = {
   mediaUrl(code: string, id: string): string {
     return `/api/m/${encodeURIComponent(code)}/${encodeURIComponent(id)}`;
   },
+
+  /**
+   * Phase-2: ask the Worker to render the recap server-side. Returns a blob URL
+   * for the finished MP4 when server render is enabled, otherwise `{ mode:
+   * "client" }` so the caller falls back to the on-device export. Never throws —
+   * any failure degrades to the client path.
+   */
+  async requestServerRecap(
+    code: string,
+  ): Promise<{ mode: "client" } | { mode: "server"; url: string }> {
+    try {
+      const token = getToken(code);
+      const res = await fetch(`/api/spaces/${encodeURIComponent(code)}/recap`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) return { mode: "client" };
+      const ct = res.headers.get("Content-Type") ?? "";
+      if (!ct.includes("video/")) return { mode: "client" };
+      const blob = await res.blob();
+      return { mode: "server", url: URL.createObjectURL(blob) };
+    } catch {
+      return { mode: "client" };
+    }
+  },
 };
 
 /* re-export for convenience at call sites */

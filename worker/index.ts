@@ -12,8 +12,11 @@ import { drizzle } from "drizzle-orm/d1";
 import { and, eq, lt } from "drizzle-orm";
 
 import type { AppEnv } from "./env";
+import { moderationOn } from "./env";
 import { issueToken, verifyToken, DEV_JWT_SECRET } from "./auth";
 import { verifyTurnstile } from "./turnstile";
+import { moderateImage } from "./moderation";
+import { serverRecap, serverRenderAvailable } from "./render";
 import { securityHeaders, clientIp } from "./security";
 import { checkRate } from "./rate-limiter";
 import { spaces } from "./db/schema";
@@ -21,6 +24,7 @@ import {
   CreateSpaceBody,
   JoinSpaceBody,
   type AuthResult,
+  type MediaMeta,
   type SpacePublic,
   type TokenClaims,
 } from "@shared/protocol";
@@ -73,7 +77,7 @@ app.post("/api/spaces", async (c) => {
   if (!parsed.success) return c.json({ error: "Invalid input" }, 400);
   const { name, hostName, turnstileToken } = parsed.data;
 
-  if (!(await verifyTurnstile(c.env.TURNSTILE_SECRET, turnstileToken, ip)))
+  if (!(await verifyTurnstile(c.env, turnstileToken, ip, { hostname: new URL(c.req.url).hostname, action: "create" })))
     return c.json({ error: "Verification failed. Please retry." }, 403);
 
   const db = drizzle(c.env.DB);
@@ -118,7 +122,7 @@ app.post("/api/spaces/:code/join", async (c) => {
   if (!parsed.success) return c.json({ error: "Invalid input" }, 400);
   const { displayName, turnstileToken } = parsed.data;
 
-  if (!(await verifyTurnstile(c.env.TURNSTILE_SECRET, turnstileToken, ip)))
+  if (!(await verifyTurnstile(c.env, turnstileToken, ip, { hostname: new URL(c.req.url).hostname, action: "join" })))
     return c.json({ error: "Verification failed. Please retry." }, 403);
 
   const memberId = nanoid(12);
@@ -170,6 +174,12 @@ app.post("/api/spaces/:code/media", async (c) => {
   if (buf.byteLength === 0) return c.json({ error: "Empty upload" }, 400);
   if (buf.byteLength > MAX_MEDIA_BYTES) return c.json({ error: "Image too large" }, 413);
 
+  // Optional AI moderation (flag-gated, fails open). Off by default.
+  if (moderationOn(c.env)) {
+    const verdict = await moderateImage(c.env, new Uint8Array(buf));
+    if (!verdict.allowed) return c.json({ error: "This image was blocked by moderation." }, 422);
+  }
+
   const res = await callRoom(c.env, code, "/media", {
     method: "POST",
     body: buf,
@@ -204,6 +214,46 @@ app.post("/api/spaces/:code/moment", async (c) => {
 
   const res = await callRoom(c.env, code, "/moment", { method: "POST", headers: { "X-Member-Id": claims.sub } });
   return c.json(await res.json());
+});
+
+// -------------------------------------------------------- recap render (Phase-2)
+/** Probe: tells the client whether a server render is available for this space. */
+app.get("/api/spaces/:code/recap", async (c) => {
+  const code = c.req.param("code").toUpperCase();
+  if (!(await authFor(c, code))) return c.json({ error: "Unauthorized" }, 401);
+  return c.json({ mode: serverRenderAvailable(c.env) ? "server" : "client" });
+});
+
+/**
+ * Render the recap. With RENDER_MODE=server + a bound container, this returns a
+ * finished `video/mp4`. Otherwise it returns `{ mode: "client" }` so the client
+ * falls back to its on-device export (the free default path). Inert by default.
+ */
+app.post("/api/spaces/:code/recap", async (c) => {
+  const code = c.req.param("code").toUpperCase();
+  const claims = await authFor(c, code);
+  if (!claims) return c.json({ error: "Unauthorized" }, 401);
+  if (!serverRenderAvailable(c.env)) return c.json({ mode: "client" }, 200);
+
+  // Server renders are expensive — rate-limit them per space.
+  if (!(await checkRate(c.env, `recap:${code}`, "recap", 3, 5 * 60_000)))
+    return c.json({ error: "Recaps are rate-limited. Try again shortly." }, 429);
+
+  const listRes = await callRoom(c.env, code, "/media-list");
+  const { media } = (await listRes.json()) as { media: MediaMeta[] };
+  if (!media.length) return c.json({ error: "Nothing to recap yet." }, 400);
+
+  const origin = new URL(c.req.url).origin;
+  const frames = [...media]
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .map((m) => ({ url: `${origin}/api/m/${code}/${encodeURIComponent(m.id)}`, displayName: m.displayName }));
+
+  const res = await serverRecap(c.env, { title: code, width: 1280, height: 720, msPerFrame: 1600, frames });
+  if (!res.ok) return c.json({ error: "Render failed." }, 502);
+  return new Response(res.body, {
+    status: 200,
+    headers: { "Content-Type": "video/mp4", "Cache-Control": "no-store" },
+  });
 });
 
 // -------------------------------------------------------------- token refresh

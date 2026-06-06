@@ -1,0 +1,11 @@
+{
+  "name": "vantage-recap-render",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Phase-2 ffmpeg recap render service (runs inside a Cloudflare Container).",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  }
+}

@@ -14,6 +14,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { nanoid } from "nanoid";
 import type { AppEnv } from "./env";
+import { createMediaStore, type MediaBlobStore } from "./storage";
 import type {
   Member,
   MediaMeta,
@@ -55,6 +56,9 @@ export class SpaceRoom extends DurableObject<AppEnv> {
   /** per-socket WS message rate-limit counters (in-memory; resets on hibernation wake — fine) */
   private wsHits = new WeakMap<WebSocket, { count: number; start: number }>();
 
+  /** lazily-resolved blob backend (DO SQLite or R2, per STORAGE_MODE) */
+  private blobStore?: MediaBlobStore;
+
   constructor(ctx: DurableObjectState, env: AppEnv) {
     super(ctx, env);
     const sql = this.ctx.storage.sql;
@@ -63,13 +67,56 @@ export class SpaceRoom extends DurableObject<AppEnv> {
     sql.exec(`CREATE TABLE IF NOT EXISTS members (
       member_id TEXT PRIMARY KEY, display_name TEXT NOT NULL, role TEXT NOT NULL,
       avatar_seed TEXT NOT NULL, joined_at INTEGER NOT NULL)`);
+    // Media METADATA only — the bytes live in the blob store (DO SQLite or R2).
     sql.exec(`CREATE TABLE IF NOT EXISTS media (
       id TEXT PRIMARY KEY, kind TEXT NOT NULL, moment_id TEXT, member_id TEXT NOT NULL,
       display_name TEXT NOT NULL, content_type TEXT NOT NULL, width INTEGER NOT NULL,
-      height INTEGER NOT NULL, created_at INTEGER NOT NULL, bytes BLOB NOT NULL)`);
+      height INTEGER NOT NULL, created_at INTEGER NOT NULL, byte_size INTEGER NOT NULL DEFAULT 0)`);
+    // Default (free) blob backend: bytes in the DO's own SQLite.
+    sql.exec(`CREATE TABLE IF NOT EXISTS media_blobs (
+      id TEXT PRIMARY KEY, content_type TEXT NOT NULL, bytes BLOB NOT NULL)`);
     sql.exec(`CREATE TABLE IF NOT EXISTS moments (
       moment_id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, triggered_by TEXT NOT NULL,
       capture_at INTEGER NOT NULL, finalize_at INTEGER NOT NULL, status TEXT NOT NULL)`);
+    this.migrateSchema(sql);
+  }
+
+  /** The blob backend for this space (cached). Chosen by STORAGE_MODE + bindings. */
+  private store(): MediaBlobStore {
+    return (this.blobStore ??= createMediaStore(this.env, this.ctx.storage.sql, this.ctx.id.toString()));
+  }
+
+  /**
+   * Best-effort, idempotent migration for spaces created under the original
+   * schema (where `media` carried an inline `bytes` column). Moves any inline
+   * bytes into `media_blobs`, backfills `byte_size`, and drops the old column.
+   * Fully guarded — a brand-new space skips all of this.
+   */
+  private migrateSchema(sql: SqlStorage): void {
+    try {
+      const cols = sql.exec<{ name: string }>(`PRAGMA table_info(media)`).toArray();
+      const names = new Set(cols.map((c) => c.name));
+      if (!names.has("byte_size")) {
+        sql.exec(`ALTER TABLE media ADD COLUMN byte_size INTEGER NOT NULL DEFAULT 0`);
+      }
+      if (names.has("bytes")) {
+        const rows = sql
+          .exec<{ id: string; content_type: string; bytes: ArrayBuffer; n: number }>(
+            `SELECT id, content_type, bytes, LENGTH(bytes) n FROM media`,
+          )
+          .toArray();
+        for (const r of rows) {
+          sql.exec(
+            `INSERT OR IGNORE INTO media_blobs (id, content_type, bytes) VALUES (?, ?, ?)`,
+            r.id, r.content_type, new Uint8Array(r.bytes),
+          );
+          sql.exec(`UPDATE media SET byte_size = ? WHERE id = ? AND byte_size = 0`, r.n, r.id);
+        }
+        sql.exec(`ALTER TABLE media DROP COLUMN bytes`);
+      }
+    } catch {
+      /* migration is best-effort; new spaces never need it */
+    }
   }
 
   // ----------------------------------------------------------------- routing
@@ -83,9 +130,9 @@ export class SpaceRoom extends DurableObject<AppEnv> {
       if (path === "/join") return this.json(await this.join(request));
       if (path === "/media-list") return this.json({ media: this.wallSnapshot() });
       if (path === "/media" && request.method === "POST") return this.json(await this.addMedia(request));
-      if (path.startsWith("/media/")) return this.getMediaBytes(path.slice("/media/".length));
+      if (path.startsWith("/media/")) return await this.getMediaBytes(path.slice("/media/".length));
       if (path === "/moment" && request.method === "POST") return this.json(await this.triggerMoment(request));
-      if (path === "/purge") { await this.ctx.storage.deleteAll(); return new Response("ok"); }
+      if (path === "/purge") { await this.purge(); return new Response("ok"); }
       return new Response("not found", { status: 404 });
     } catch (err) {
       const message = err instanceof Error ? err.message : "error";
@@ -242,10 +289,14 @@ export class SpaceRoom extends DurableObject<AppEnv> {
 
     const id = nanoid(16);
     const createdAt = Date.now();
+    const bytes = new Uint8Array(buf);
+    // 1) persist bytes in the active blob backend (DO SQLite by default, else R2)
+    await this.store().put(id, bytes, contentType);
+    // 2) record metadata (+ size, for quota accounting) in the DO
     this.ctx.storage.sql.exec(
-      `INSERT INTO media (id, kind, moment_id, member_id, display_name, content_type, width, height, created_at, bytes)
+      `INSERT INTO media (id, kind, moment_id, member_id, display_name, content_type, width, height, created_at, byte_size)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, kind, momentId, memberId, displayName, contentType, width, height, createdAt, new Uint8Array(buf),
+      id, kind, momentId, memberId, displayName, contentType, width, height, createdAt, bytes.byteLength,
     );
 
     const media: MediaMeta = {
@@ -256,15 +307,12 @@ export class SpaceRoom extends DurableObject<AppEnv> {
     return { media };
   }
 
-  private getMediaBytes(id: string): Response {
-    const row = this.ctx.storage.sql
-      .exec<{ bytes: ArrayBuffer; content_type: string }>(
-        `SELECT bytes, content_type FROM media WHERE id = ?`, id,
-      ).toArray()[0];
-    if (!row) return new Response("not found", { status: 404 });
-    return new Response(row.bytes, {
+  private async getMediaBytes(id: string): Promise<Response> {
+    const got = await this.store().get(id);
+    if (!got) return new Response("not found", { status: 404 });
+    return new Response(got.body, {
       headers: {
-        "Content-Type": row.content_type,
+        "Content-Type": got.contentType,
         // Immutable, unguessable id → safe to cache hard at the edge & in the browser.
         "Cache-Control": "public, max-age=31536000, immutable",
       },
@@ -349,8 +397,25 @@ export class SpaceRoom extends DurableObject<AppEnv> {
 
   private mediaStats(): { count: number; bytes: number } {
     const row = this.ctx.storage.sql
-      .exec<{ n: number; b: number | null }>(`SELECT COUNT(*) n, SUM(LENGTH(bytes)) b FROM media`).toArray()[0];
+      .exec<{ n: number; b: number | null }>(`SELECT COUNT(*) n, SUM(byte_size) b FROM media`).toArray()[0];
     return { count: row?.n ?? 0, bytes: row?.b ?? 0 };
+  }
+
+  /**
+   * Tear down the space. Deletes external blobs (R2) before wiping local
+   * storage, so flipping STORAGE_MODE=r2 doesn't orphan objects in the bucket.
+   */
+  private async purge(): Promise<void> {
+    try {
+      if (this.store().backend === "r2") {
+        const ids = this.ctx.storage.sql
+          .exec<{ id: string }>(`SELECT id FROM media`).toArray().map((r) => r.id);
+        if (ids.length) await this.store().delete(ids);
+      }
+    } catch {
+      /* best-effort external cleanup; never block local teardown */
+    }
+    await this.ctx.storage.deleteAll();
   }
 
   private publicInfo(): SpacePublic {
