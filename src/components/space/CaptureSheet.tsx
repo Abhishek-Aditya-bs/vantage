@@ -34,6 +34,9 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
   const [busy, setBusy] = useState(false);
   const [camError, setCamError] = useState<string | null>(null);
   const [facing, setFacing] = useState<"environment" | "user">("environment");
+  // Mirror the selfie/webcam feed (like the iPhone front camera & a real mirror).
+  // Only the rear/"environment" camera is shown un-mirrored.
+  const [mirrored, setMirrored] = useState(false);
 
   // start / stop the camera with the sheet's open state
   useEffect(() => {
@@ -50,6 +53,11 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
           return;
         }
         streamRef.current = stream;
+        // The browser may fall back to a different camera than requested; trust
+        // the actual track. Rear cam reports facingMode "environment" → no mirror;
+        // selfie ("user") and desktop webcams (undefined) → mirror.
+        const settings = stream.getVideoTracks()[0]?.getSettings();
+        setMirrored(settings?.facingMode !== "environment");
         const v = videoRef.current;
         if (v) {
           v.srcObject = stream;
@@ -73,7 +81,7 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
     if (!v || busy) return;
     setBusy(true);
     try {
-      const frame = await grabFrame(v);
+      const frame = await grabFrame(v, { mirror: mirrored });
       await onCapture(frame);
       onClose();
     } catch {
@@ -143,7 +151,10 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
                 playsInline
                 muted
                 className="h-full w-full object-cover"
-                style={{ display: camError ? "none" : "block" }}
+                style={{
+                  display: camError ? "none" : "block",
+                  transform: mirrored ? "scaleX(-1)" : undefined,
+                }}
               />
               {!ready && !camError && (
                 <div className="absolute inset-0 grid place-items-center">

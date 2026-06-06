@@ -40,11 +40,16 @@ export function stopStream(stream: MediaStream | null): void {
   stream?.getTracks().forEach((t) => t.stop());
 }
 
-/** Grab the current frame of a playing <video> as a compressed blob. */
+/**
+ * Grab the current frame of a playing <video> as a compressed blob.
+ * `mirror` horizontally flips the capture so a selfie/webcam photo matches the
+ * mirrored preview the user was looking at (WYSIWYG).
+ */
 export async function grabFrame(
   video: HTMLVideoElement,
-  maxBytes = MAX_MEDIA_BYTES,
+  opts: { maxBytes?: number; mirror?: boolean } = {},
 ): Promise<CapturedFrame> {
+  const { maxBytes = MAX_MEDIA_BYTES, mirror = false } = opts;
   const w = video.videoWidth || 1280;
   const h = video.videoHeight || 720;
   const canvas = document.createElement("canvas");
@@ -52,6 +57,10 @@ export async function grabFrame(
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context unavailable");
+  if (mirror) {
+    ctx.translate(w, 0);
+    ctx.scale(-1, 1);
+  }
   ctx.drawImage(video, 0, 0, w, h);
   const blob = await canvasToBlob(canvas, "image/webp", 0.85);
   return compressImageBlob(blob, maxBytes);
