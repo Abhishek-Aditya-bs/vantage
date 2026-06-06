@@ -34,7 +34,8 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export function isAdminEmail(env: AppEnv, email: string): boolean {
-  return email.trim().toLowerCase() === adminEmail(env);
+  const allowed = adminEmail(env);
+  return allowed.length > 0 && email.trim().toLowerCase() === allowed;
 }
 
 export async function issueAdminToken(env: AppEnv, email: string): Promise<string> {
@@ -56,7 +57,8 @@ export async function verifyAdminToken(env: AppEnv, token: string): Promise<stri
       algorithms: ["HS256"],
     });
     if (payload.adm !== true || typeof payload.sub !== "string") return null;
-    if (payload.sub !== adminEmail(env)) return null;
+    const allowed = adminEmail(env);
+    if (!allowed || payload.sub !== allowed) return null;
     return payload.sub;
   } catch {
     return null;

@@ -40,7 +40,7 @@ export interface AppEnv extends Omit<Env, "STORAGE_MODE" | "RENDER_MODE"> {
    * the endpoint stays disabled (403). `wrangler secret put ADMIN_SECRET`.
    */
   ADMIN_SECRET?: string;
-  /** The single email allowed into the admin dashboard. Defaults to ADMIN_EMAIL_FALLBACK. */
+  /** The single email allowed into the admin dashboard. `wrangler secret put ADMIN_EMAIL`; unset → admin disabled. */
   ADMIN_EMAIL?: string;
   /** Master passcode for the admin dashboard (bootstrap / no-email fallback). `wrangler secret put ADMIN_PASSCODE`. */
   ADMIN_PASSCODE?: string;
@@ -79,7 +79,9 @@ export const renderMode = (env: AppEnv): RenderMode =>
 /** Whether AI moderation is enabled (defaults off). */
 export const moderationOn = (env: AppEnv): boolean => env.MODERATION_MODE === "on";
 
-/** The single email permitted into the admin dashboard. */
-const ADMIN_EMAIL_FALLBACK = "abhishek.aditya10@gmail.com";
+/**
+ * The single email permitted into the admin dashboard — sourced only from the
+ * ADMIN_EMAIL secret (never hardcoded). Empty when unset, which disables admin.
+ */
 export const adminEmail = (env: AppEnv): string =>
-  (env.ADMIN_EMAIL ?? ADMIN_EMAIL_FALLBACK).trim().toLowerCase();
+  (env.ADMIN_EMAIL ?? "").trim().toLowerCase();
