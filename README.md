@@ -66,7 +66,7 @@ R2 would be the obvious place to store photos — but enabling R2 requires a **p
 
 ## Security & abuse-prevention (free tier)
 
-- **Capability tokens** — the join link *is* the credential: short-lived HS256 JWTs (`jose`), scoped to one space + role (host 6 h / guest 4 h), validated and enforced *inside* the Durable Object (only the host can trigger Moments).
+- **Capability tokens** — the join link *is* the credential: short-lived HS256 JWTs (`jose`), scoped to one space + role (24 h), validated and enforced *inside* the Durable Object (only the host can trigger Moments).
 - **Admin dashboard** — `/admin` is gated to a single allowlisted email (the `ADMIN_EMAIL` secret) via a 6-digit OTP (hashed in KV, 10-min TTL, emailed through Resend) with a master-passcode fallback; a correct code issues a 2-hour admin JWT. If the secret is unset, admin is **disabled** (fails closed).
 - **App-layer rate limiting** — sliding-window limits on space creation, joins, uploads (10/min per member), WebSocket messages, Moment triggers, and admin attempts (the `RateLimiter` DO + an in-DO per-socket throttle), since WAF rate-limiting isn't on the free plan for `*.workers.dev`.
 - **Per-space quotas** — max **50 members / 300 photos / 500 MB**, plus 7-day auto-expiry via Cron, to stay inside the free tier.

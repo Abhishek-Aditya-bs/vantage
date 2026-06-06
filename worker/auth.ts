@@ -8,8 +8,8 @@ import type { Role, TokenClaims } from "@shared/protocol";
 
 const ISS = "vantage";
 const AUD = "vantage-app";
-const HOST_TTL_SECONDS = 6 * 60 * 60; // hosts: 6h
-const GUEST_TTL_SECONDS = 4 * 60 * 60; // guests: 4h
+const HOST_TTL_SECONDS = 24 * 60 * 60; // hosts: 24h
+const GUEST_TTL_SECONDS = 24 * 60 * 60; // guests: 24h
 
 function secretKey(secret: string): Uint8Array {
   return new TextEncoder().encode(secret);

@@ -1,9 +1,9 @@
 /**
  * Recent-spaces registry (localStorage) — lets you RE-ENTER spaces you created or
  * joined, even after closing the tab. Unlike the per-tab session token, this
- * persists {code, name, role, joinUrl, token}. The token is short-lived
- * (host 6h / guest 4h) and scoped to one space, so persisting it just buys you a
- * "rejoin" button until it naturally expires (after which you re-join via link).
+ * persists {code, name, role, joinUrl, token}. The token lasts 24h and is scoped
+ * to one space, so persisting it just buys you a "rejoin" button until it
+ * naturally expires (after which you re-join via the link).
  */
 export interface RecentSpace {
   code: string;
