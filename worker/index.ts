@@ -296,6 +296,32 @@ app.get("/api/spaces/:code/ws", async (c) => {
   });
 });
 
+// -------------------------------------------------------------- admin reset
+/**
+ * Maintenance: purge every space's Durable Object and clear the D1 registry —
+ * a clean slate. Disabled (403) unless ADMIN_SECRET is configured, and then
+ * gated by a matching `X-Admin-Secret` header.
+ */
+app.post("/api/admin/reset", async (c) => {
+  const secret = c.env.ADMIN_SECRET;
+  if (!secret) return c.json({ error: "Disabled." }, 403);
+  if (c.req.header("X-Admin-Secret") !== secret) return c.json({ error: "Unauthorized" }, 401);
+
+  const db = drizzle(c.env.DB);
+  const rows = await db.select({ code: spaces.code }).from(spaces);
+  let purged = 0;
+  for (const { code } of rows) {
+    try {
+      await callRoom(c.env, code, "/purge");
+      purged += 1;
+    } catch {
+      /* keep going — best effort */
+    }
+  }
+  await db.delete(spaces);
+  return c.json({ spaces: rows.length, purged });
+});
+
 // SPA fallback (the Worker normally only runs for /api/*, but be safe).
 app.all("*", (c) => c.env.ASSETS.fetch(c.req.raw));
 

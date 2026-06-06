@@ -34,6 +34,12 @@ export interface AppEnv extends Omit<Env, "STORAGE_MODE" | "RENDER_MODE"> {
   RENDER_SECRET?: string;
   /** "1" to enforce Turnstile strictly (no fail-open on infra errors). */
   TURNSTILE_ENFORCE?: string;
+  /**
+   * Admin maintenance secret. When set, enables `POST /api/admin/reset` (purges
+   * every space DO + clears the D1 registry). Leave unset in normal operation so
+   * the endpoint stays disabled (403). `wrangler secret put ADMIN_SECRET`.
+   */
+  ADMIN_SECRET?: string;
 
   // ---- Phase-2 bindings (optional; declared in wrangler.jsonc when enabled) -
   /** R2 bucket for media when STORAGE_MODE=r2. Bind as `MEDIA_BUCKET`. */
