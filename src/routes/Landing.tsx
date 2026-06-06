@@ -4,12 +4,14 @@
  * labels. Hand-authored black-and-white blueprint figures carry every section;
  * Factory-style numeric anchors, hairline rules, and ░ dividers set the rhythm.
  */
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "motion/react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
+import { listSpaces, forgetSpace, type RecentSpace } from "@/lib/spaces";
+import { formatCode } from "@/lib/format";
 import { PixelHeadline } from "@/components/brand/PixelHeadline";
 import { AsciiColophon } from "@/components/brand/AsciiColophon";
 import { BlueprintFigure } from "@/components/landing/BlueprintFigure";
@@ -28,6 +30,13 @@ const reveal = {
 };
 
 export default function Landing() {
+  const [recent, setRecent] = useState<RecentSpace[]>([]);
+  useEffect(() => setRecent(listSpaces()), []);
+  const forget = (code: string) => {
+    forgetSpace(code);
+    setRecent(listSpaces());
+  };
+
   return (
     <div className="min-h-dvh bg-background">
       <AppHeader>
@@ -91,6 +100,46 @@ export default function Landing() {
                 no app · no account · free
               </span>
             </motion.div>
+
+            {/* resume any space you've created or joined (persists across tabs) */}
+            {recent.length > 0 && (
+              <motion.div {...reveal} className="mt-12 max-w-xl">
+                <p className="font-mono text-[0.7rem] uppercase tracking-[0.26em] text-muted-foreground">
+                  Your spaces — resume
+                </p>
+                <ul className="mt-3 divide-y divide-border border-y border-border">
+                  {recent.map((s) => (
+                    <li key={s.code} className="flex items-center justify-between gap-3 py-3">
+                      <Link to={`/s/${s.code}`} className="group flex min-w-0 items-baseline gap-3">
+                        <span className="truncate font-display text-base font-semibold tracking-tight group-hover:underline">
+                          {s.name}
+                        </span>
+                        <span className="font-mono text-xs text-muted-foreground">{formatCode(s.code)}</span>
+                        <span className="shrink-0 font-mono text-[0.6rem] uppercase tracking-[0.18em] text-muted-foreground">
+                          {s.role}
+                        </span>
+                      </Link>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <Link
+                          to={`/s/${s.code}`}
+                          className="font-mono text-xs uppercase tracking-[0.12em] text-foreground hover:underline"
+                        >
+                          Rejoin →
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => forget(s.code)}
+                          aria-label={`Forget ${s.name}`}
+                          className="text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </motion.div>
+            )}
           </Shell>
 
           {/* hero figure — the synchronized-capture schematic */}

@@ -9,6 +9,7 @@ import { ArrowRight, Users, Images } from "lucide-react";
 import { MAX_DISPLAY_NAME } from "@shared/constants";
 import type { SpacePublic } from "@shared/protocol";
 import { api, ApiError } from "@/lib/api";
+import { recordSpace } from "@/lib/spaces";
 import { formatCode } from "@/lib/format";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -64,9 +65,14 @@ export default function Join() {
         displayName: displayName.trim(),
         ...(turnstileToken ? { turnstileToken } : {}),
       });
-      navigate(
-        `/s/${res.space.code}?t=${encodeURIComponent(res.token)}`,
-      );
+      recordSpace({
+        code: res.space.code,
+        name: res.space.name,
+        role: "guest",
+        joinUrl: res.joinUrl,
+        token: res.token,
+      });
+      navigate(`/s/${res.space.code}?t=${encodeURIComponent(res.token)}`);
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "Could not join the space.";

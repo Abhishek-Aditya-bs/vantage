@@ -9,6 +9,7 @@ import { ArrowRight, Copy, Check } from "lucide-react";
 import { MAX_DISPLAY_NAME, MAX_SPACE_NAME } from "@shared/constants";
 import type { AuthResult } from "@shared/protocol";
 import { api, ApiError } from "@/lib/api";
+import { recordSpace } from "@/lib/spaces";
 import { formatCode } from "@/lib/format";
 import { AppHeader } from "@/components/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -39,6 +40,13 @@ export default function Create() {
         name: spaceName.trim(),
         hostName: hostName.trim(),
         ...(turnstileToken ? { turnstileToken } : {}),
+      });
+      recordSpace({
+        code: res.space.code,
+        name: res.space.name,
+        role: "host",
+        joinUrl: res.joinUrl,
+        token: res.token,
       });
       setResult(res);
     } catch (err) {

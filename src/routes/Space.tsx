@@ -7,10 +7,11 @@
  * neither exists, bounce to the Join screen.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams, Link } from "react-router-dom";
-import { Camera, Clapperboard } from "lucide-react";
+import { useNavigate, useParams, useSearchParams, Link } from "react-router-dom";
+import { Camera, Clapperboard, LogOut } from "lucide-react";
 import type { MediaMeta } from "@shared/protocol";
 import { api, getToken, setToken } from "@/lib/api";
+import { getSpace, touchSpace } from "@/lib/spaces";
 import { useSpaceSocket } from "@/lib/useSpaceSocket";
 import type { CapturedFrame } from "@/lib/capture";
 import { useToast } from "@/components/ui/toast";
@@ -32,6 +33,7 @@ import { ImageLightbox } from "@/components/space/ImageLightbox";
 export default function Space() {
   const { code = "" } = useParams();
   const [search] = useSearchParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   // resolve + persist the capability token
@@ -46,13 +48,24 @@ export default function Space() {
       // strip the token from the visible URL for hygiene
       window.history.replaceState(null, "", `/s/${code}`);
     } else {
-      setTokenState(getToken(code));
+      // prefer the per-tab session token; fall back to a saved space (rejoin
+      // after closing the tab), hydrating the session for this code.
+      const session = getToken(code);
+      const stored = getSpace(code)?.token ?? null;
+      const resolved = session ?? stored;
+      if (!session && stored) setToken(code, stored);
+      setTokenState(resolved);
     }
     setAuthResolved(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   const sock = useSpaceSocket(code, token);
+
+  // keep this space at the top of "Your spaces" and sync its latest name
+  useEffect(() => {
+    if (sock.space) touchSpace(code, { name: sock.space.name });
+  }, [sock.space, code]);
 
   // local UI state
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -183,7 +196,19 @@ export default function Space() {
       {/* compact immersive header */}
       <header className="sticky top-0 z-30 flex items-center justify-between border-b border-border bg-background/85 px-4 py-2.5 backdrop-blur-sm">
         <Logo size={26} />
-        <ThemeToggle />
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate("/")}
+            className="font-mono text-xs"
+            aria-label="Leave this space"
+          >
+            <LogOut />
+            <span className="hidden sm:inline">Leave</span>
+          </Button>
+          <ThemeToggle />
+        </div>
       </header>
 
       <PresenceBar
