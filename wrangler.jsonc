@@ -21,7 +21,7 @@
     "APP_NAME": "Vantage",
     "RENDER_MODE": "client", // client (free, on-device WebCodecs) | server (Phase-2 $5 container)
     "STORAGE_MODE": "do", // do (free, DO SQLite) | r2 (optional upgrade once R2 enabled)
-    "TURNSTILE_SITE_KEY": "1x00000000000000000000AA" // Cloudflare test key; replace at deploy
+    "TURNSTILE_SITE_KEY": "0x4AAAAAADf8WhusAEpPl0Ig" // public site key (client reads it via public/config.js)
   },
 
   "durable_objects": {

@@ -28,6 +28,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Vantage" />
 
+    <!-- Public runtime config (window.__VANTAGE__) — must run before the app module -->
+    <script src="/config.js"></script>
+
     <!-- Cloudflare Turnstile (loads async; the app falls back gracefully if absent) -->
     <script
       src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
