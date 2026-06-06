@@ -1,10 +1,14 @@
 /**
  * Camera + image-compression utilities.
  *
- * Flow: getUserMedia() -> draw a <video> frame onto a <canvas> -> toBlob() ->
- * compress under MAX_MEDIA_BYTES by stepping quality then dimensions down.
+ * Flow: getUserMedia() -> snapshot a <video> frame onto a <canvas> (sync, the
+ * "shutter" instant) -> encode under MAX_MEDIA_BYTES by stepping quality then
+ * dimensions down. The snapshot is split from the encode so the UI can close the
+ * camera the moment the shutter fires and compress/upload in the background.
+ *
  * A plain <input capture> fallback is provided for browsers/contexts where
- * getUserMedia is blocked.
+ * getUserMedia is blocked, plus permission helpers so the UI can prompt once,
+ * skip the prompt when already granted, and offer a clear re-allow path.
  */
 import { MAX_MEDIA_BYTES } from "@shared/constants";
 
@@ -14,12 +18,70 @@ export interface CapturedFrame {
   height: number;
 }
 
+/** Why the camera couldn't open — drives the message + retry affordance shown. */
+export type CameraErrorKind =
+  | "denied" // user blocked / dismissed the permission prompt
+  | "notfound" // no camera, or constraints can't be satisfied
+  | "inuse" // hardware busy / not readable
+  | "insecure" // not a secure context (http) — getUserMedia is unavailable
+  | "unsupported" // browser has no getUserMedia at all
+  | "other";
+
+/** Classify a getUserMedia rejection so the UI can react appropriately. */
+export function cameraErrorKind(err: unknown): CameraErrorKind {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return window.isSecureContext === false ? "insecure" : "unsupported";
+  }
+  const name = (err as { name?: string } | null)?.name ?? "";
+  switch (name) {
+    case "NotAllowedError":
+    case "SecurityError":
+    case "PermissionDeniedError":
+      return "denied";
+    case "NotFoundError":
+    case "DevicesNotFoundError":
+    case "OverconstrainedError":
+    case "ConstraintNotSatisfiedError":
+      return "notfound";
+    case "NotReadableError":
+    case "TrackStartError":
+    case "AbortError":
+      return "inuse";
+    default:
+      return "other";
+  }
+}
+
+/**
+ * Best-effort read of the camera permission state via the Permissions API.
+ * Returns "unknown" when the API (or the "camera" descriptor) is unavailable —
+ * notably Safari, where callers must just attempt getUserMedia.
+ */
+export async function queryCameraPermission(): Promise<
+  PermissionState | "unknown"
+> {
+  try {
+    const perms = (navigator as Navigator & { permissions?: Permissions })
+      .permissions;
+    if (!perms?.query) return "unknown";
+    // "camera" isn't in the TS PermissionName union in every lib version.
+    const status = await perms.query({
+      name: "camera" as PermissionName,
+    });
+    return status.state;
+  } catch {
+    return "unknown";
+  }
+}
+
 /** Open the rear ("environment") camera by default. Caller must stop tracks. */
 export async function openCamera(
   facing: "environment" | "user" = "environment",
 ): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
-    throw new Error("Camera API unavailable");
+    const err = new Error("Camera API unavailable");
+    err.name = window.isSecureContext === false ? "SecurityError" : "NotSupportedError";
+    throw err;
   }
   try {
     return await navigator.mediaDevices.getUserMedia({
@@ -30,8 +92,10 @@ export async function openCamera(
       },
       audio: false,
     });
-  } catch {
-    // Relax constraints if the ideal facing mode is unavailable.
+  } catch (err) {
+    // A hard denial must propagate so the UI can show the re-allow path.
+    if (cameraErrorKind(err) === "denied") throw err;
+    // Otherwise relax constraints (e.g. the ideal facing mode is unavailable).
     return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
   }
 }
@@ -41,15 +105,14 @@ export function stopStream(stream: MediaStream | null): void {
 }
 
 /**
- * Grab the current frame of a playing <video> as a compressed blob.
- * `mirror` horizontally flips the capture so a selfie/webcam photo matches the
- * mirrored preview the user was looking at (WYSIWYG).
+ * Snapshot the current frame of a playing <video> onto a detached canvas.
+ * Synchronous and cheap — this is the "shutter" instant. `mirror` horizontally
+ * flips it so a selfie/webcam photo matches the mirrored preview (WYSIWYG).
  */
-export async function grabFrame(
+export function snapshotToCanvas(
   video: HTMLVideoElement,
-  opts: { maxBytes?: number; mirror?: boolean } = {},
-): Promise<CapturedFrame> {
-  const { maxBytes = MAX_MEDIA_BYTES, mirror = false } = opts;
+  mirror = false,
+): HTMLCanvasElement {
   const w = video.videoWidth || 1280;
   const h = video.videoHeight || 720;
   const canvas = document.createElement("canvas");
@@ -62,8 +125,28 @@ export async function grabFrame(
     ctx.scale(-1, 1);
   }
   ctx.drawImage(video, 0, 0, w, h);
-  const blob = await canvasToBlob(canvas, "image/webp", 0.85);
-  return compressImageBlob(blob, maxBytes);
+  return canvas;
+}
+
+/** Encode an already-drawn canvas under `maxBytes` (no extra decode). */
+export function compressCanvas(
+  canvas: HTMLCanvasElement,
+  maxBytes = MAX_MEDIA_BYTES,
+): Promise<CapturedFrame> {
+  return encodeUnderBudget(canvas, canvas.width, canvas.height, maxBytes);
+}
+
+/**
+ * Grab the current frame of a playing <video> as a compressed blob.
+ * Convenience wrapper around snapshotToCanvas + compressCanvas.
+ */
+export async function grabFrame(
+  video: HTMLVideoElement,
+  opts: { maxBytes?: number; mirror?: boolean } = {},
+): Promise<CapturedFrame> {
+  const { maxBytes = MAX_MEDIA_BYTES, mirror = false } = opts;
+  const canvas = snapshotToCanvas(video, mirror);
+  return compressCanvas(canvas, maxBytes);
 }
 
 /** Promise wrapper around canvas.toBlob with a graceful encoder fallback. */
@@ -125,25 +208,27 @@ function bitmapSize(src: ImageBitmap | HTMLImageElement): {
 }
 
 /**
- * Re-encode an image blob until it fits within `maxBytes`.
+ * Re-encode a drawable source until it fits within `maxBytes`.
  * Strategy: try WebP (then JPEG) at descending quality; if still too big,
  * downscale the longest edge by 15% and repeat. Bounded iteration count.
+ * `fallback` is returned (as the smallest seen) if nothing ever fits.
  */
-export async function compressImageBlob(
-  input: Blob,
-  maxBytes = MAX_MEDIA_BYTES,
+async function encodeUnderBudget(
+  source: CanvasImageSource,
+  srcW: number,
+  srcH: number,
+  maxBytes: number,
+  fallback?: Blob,
 ): Promise<CapturedFrame> {
-  const bitmap = await blobToBitmap(input);
-  const { w: srcW, h: srcH } = bitmapSize(bitmap);
   let width = srcW || 1280;
   let height = srcH || 720;
 
-  const types = supportsWebpEncoding() ? ["image/webp", "image/jpeg"] : ["image/jpeg"];
-  let best: CapturedFrame = {
-    blob: input,
-    width,
-    height,
-  };
+  const types = supportsWebpEncoding()
+    ? ["image/webp", "image/jpeg"]
+    : ["image/jpeg"];
+  let best: CapturedFrame | null = fallback
+    ? { blob: fallback, width, height }
+    : null;
 
   for (let pass = 0; pass < 8; pass++) {
     const canvas = document.createElement("canvas");
@@ -151,7 +236,7 @@ export async function compressImageBlob(
     canvas.height = Math.max(1, Math.round(height));
     const ctx = canvas.getContext("2d");
     if (!ctx) break;
-    ctx.drawImage(bitmap as CanvasImageSource, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
 
     for (const type of types) {
       for (const quality of [0.82, 0.7, 0.6, 0.5]) {
@@ -162,11 +247,10 @@ export async function compressImageBlob(
           continue;
         }
         if (blob.size <= maxBytes) {
-          closeBitmap(bitmap);
           return { blob, width: canvas.width, height: canvas.height };
         }
         // Track the smallest encoding seen, in case we never get under budget.
-        if (blob.size < best.blob.size) {
+        if (!best || blob.size < best.blob.size) {
           best = { blob, width: canvas.width, height: canvas.height };
         }
       }
@@ -176,8 +260,24 @@ export async function compressImageBlob(
     height *= 0.85;
   }
 
-  closeBitmap(bitmap);
-  return best;
+  if (best) return best;
+  throw new Error("Could not encode image");
+}
+
+/**
+ * Re-encode an image blob until it fits within `maxBytes`.
+ */
+export async function compressImageBlob(
+  input: Blob,
+  maxBytes = MAX_MEDIA_BYTES,
+): Promise<CapturedFrame> {
+  const bitmap = await blobToBitmap(input);
+  const { w, h } = bitmapSize(bitmap);
+  try {
+    return await encodeUnderBudget(bitmap, w, h, maxBytes, input);
+  } finally {
+    closeBitmap(bitmap);
+  }
 }
 
 function closeBitmap(b: ImageBitmap | HTMLImageElement): void {

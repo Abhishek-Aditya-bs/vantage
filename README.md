@@ -22,14 +22,25 @@ It runs **entirely on the Cloudflare developer platform**, and — by design —
 |---|---|---|
 | ![Recap title](docs/shot-recap-title.png) | ![Moment card](docs/shot-recap-moment.png) | ![Admin](docs/shot-admin.png) |
 
+### On a real phone
+
+Shot live during a real outing — the shared wall filling up, and the recap reel
+playing back in vertical, story format (tap right/left to move, like Instagram
+stories; optional synthesized soundtrack; export saves a full-screen 9:16 video
+straight to your gallery).
+
+| The live wall | Recap — a frame | Recap — the controls | Recap — a Moment |
+|---|---|---|---|
+| ![Live wall on a phone](docs/shot-mobile-wall.jpg) | ![Recap frame](docs/shot-mobile-recap.jpg) | ![Recap controls](docs/shot-mobile-recap-controls.jpg) | ![Moment, 3 angles](docs/shot-mobile-moment.jpg) |
+
 ---
 
 ## What it does
 
 - **Join by QR / link** — no app, no account. Tap in from any phone browser, pick a name, you're on the wall.
 - **Live wall** — every photo lands on a shared, real-time contact sheet, tagged with who shot it and when. Tiles animate in as they arrive.
-- **Synchronized Moments** — the host triggers a 3·2·1 iris countdown that fires on *every* connected device at the same server-time instant. The frames are grouped into one **multi-angle artifact** you can step through angle-by-angle, or view as an all-angles grid.
-- **Recap reel** — opens on a clean **title card** (the space name), then plays the event back: cross-faded photos + a held multi-angle "moment card" for each Moment. **Save the reel** to your phone's gallery via the native share sheet (or download on desktop).
+- **Synchronized Moments** — the host triggers a 3·2·1 iris countdown that fires on *every* connected device at the same server-time instant. A **live camera preview** shows behind the countdown so everyone can frame the shot; at T₀ the frame is captured instantly and uploaded in the background. The frames are grouped into one **multi-angle artifact** you can step through angle-by-angle, or view as an all-angles grid.
+- **Recap reel** — a **vertical, story-format** playback: a clean **title card** (the space name), then chronological photos (varied Ken-Burns moves + cross-fades) and a held multi-angle "moment card" for each Moment. Navigate like Instagram stories — **tap right to advance, left to go back, centre to pause**. Toggle an **optional synthesized lo-fi soundtrack** (royalty-free, generated with WebAudio — no copyright). **Save the reel** renders a real **1080×1920 full-screen video** (with the soundtrack baked in if enabled) and, on mobile, saves it straight to your **gallery** via the native share sheet — ready for Instagram; on desktop it downloads and plays full-screen in-app.
 - **Resume your spaces** — spaces you create or join are remembered in the browser, so re-entering after closing the tab is one tap on the landing — no re-sharing the link.
 - **Admin dashboard** (`/admin`) — a single-admin, email-OTP-gated console listing every space with live count, photos, and storage, with delete / wipe-all.
 - **Light + dark**, strictly monochrome, mobile-first, installable PWA.
@@ -142,7 +153,7 @@ Set in `wrangler.jsonc` (`vars`) or as secrets:
 | `ADMIN_SECRET` (secret) | unset → reset off | Enables the CLI `POST /api/admin/reset` maintenance endpoint. |
 
 ### Roadmap / optional upgrades (all behind flags)
-- **Server-side recap render** — a Cloudflare Container running `ffmpeg` (smooth cross-fades, Ken-Burns, high-quality H.264) — needs the $5 Workers Paid plan. See `containers/recap-render/`.
+- **Server-side recap render** — the free, on-device path already exports a vertical 1080×1920 reel (blurred backdrop + photo + captions + moment collages + optional synthesized audio) via `MediaRecorder`. The server path is a Cloudflare Container running `ffmpeg` for longer reels and guaranteed-everywhere H.264 — needs the $5 Workers Paid plan. See `containers/recap-render/`.
 - **R2 storage** — flip `STORAGE_MODE=r2` once R2 is enabled.
 - **Real Turnstile + custom domain** — for enforced bot protection and free WAF rate-limiting.
 - **Workers AI moderation** — set `MODERATION_MODE=on`.

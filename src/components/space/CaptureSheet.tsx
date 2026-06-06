@@ -1,18 +1,27 @@
 /**
  * Capture sheet — a bottom sheet that opens the rear camera (getUserMedia),
- * shows a live preview, and captures a frame on tap. Falls back to a native
- * file input (capture="environment") when the camera API is unavailable or
- * denied. Compresses to <= MAX_MEDIA_BYTES before handing the blob to onCapture.
+ * shows a live preview, and captures a frame on tap.
+ *
+ * The shutter is instant: tapping snapshots the frame synchronously, closes the
+ * sheet immediately, then compresses + uploads in the background (the wall shows
+ * an optimistic tile meanwhile). It never blocks on the network.
+ *
+ * Permissions: if the camera is blocked or dismissed, the sheet shows a clear
+ * "Allow camera" affordance that re-prompts, and always offers a native
+ * file-input fallback (capture="environment").
  */
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
-import { Camera, ImageUp, X, RefreshCw } from "lucide-react";
+import { Camera, ImageUp, X, RefreshCw, ShieldAlert } from "lucide-react";
 import {
   openCamera,
   stopStream,
-  grabFrame,
+  snapshotToCanvas,
+  compressCanvas,
   compressFile,
+  cameraErrorKind,
+  type CameraErrorKind,
   type CapturedFrame,
 } from "@/lib/capture";
 import { Button } from "@/components/ui/button";
@@ -25,15 +34,49 @@ interface CaptureSheetProps {
   onCapture: (frame: CapturedFrame) => void | Promise<void>;
 }
 
+const ERROR_COPY: Record<CameraErrorKind, { title: string; body: string; retry: boolean }> = {
+  denied: {
+    title: "Camera access is blocked",
+    body: "Tap Allow camera to grant access. If you blocked it before, enable the camera for this site in your browser settings — or just upload a photo.",
+    retry: true,
+  },
+  notfound: {
+    title: "No camera found",
+    body: "We couldn't find a camera on this device. Upload a photo instead.",
+    retry: true,
+  },
+  inuse: {
+    title: "Camera is busy",
+    body: "Your camera is in use by another app. Close it and try again, or upload a photo.",
+    retry: true,
+  },
+  insecure: {
+    title: "Secure connection needed",
+    body: "The camera only works over https. Upload a photo instead.",
+    retry: false,
+  },
+  unsupported: {
+    title: "Camera unavailable",
+    body: "This browser can't open the camera here. Upload a photo instead.",
+    retry: false,
+  },
+  other: {
+    title: "Camera unavailable",
+    body: "Something went wrong starting the camera. Try again or upload a photo.",
+    retry: true,
+  },
+};
+
 export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const [ready, setReady] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [camError, setCamError] = useState<string | null>(null);
+  const [camError, setCamError] = useState<CameraErrorKind | null>(null);
   const [facing, setFacing] = useState<"environment" | "user">("environment");
+  // Re-running this on demand re-prompts for permission after a denial/dismissal.
+  const [retryNonce, setRetryNonce] = useState(0);
   // Mirror the selfie/webcam feed (like the iPhone front camera & a real mirror).
   // Only the rear/"environment" camera is shown un-mirrored.
   const [mirrored, setMirrored] = useState(false);
@@ -64,8 +107,8 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
           await v.play().catch(() => undefined);
         }
         setReady(true);
-      } catch {
-        if (!cancelled) setCamError("Camera unavailable — use upload instead.");
+      } catch (err) {
+        if (!cancelled) setCamError(cameraErrorKind(err));
       }
     })();
 
@@ -74,38 +117,52 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
       stopStream(streamRef.current);
       streamRef.current = null;
     };
-  }, [open, facing]);
+  }, [open, facing, retryNonce]);
 
-  async function capture() {
+  /** The shutter: snapshot now, close now, compress + upload in the background. */
+  function capture() {
     const v = videoRef.current;
-    if (!v || busy) return;
-    setBusy(true);
+    if (!v || !ready || camError) return;
+    let canvas: HTMLCanvasElement;
     try {
-      const frame = await grabFrame(v, { mirror: mirrored });
-      await onCapture(frame);
-      onClose();
+      canvas = snapshotToCanvas(v, mirrored);
     } catch {
-      setCamError("Couldn't capture that frame.");
-    } finally {
-      setBusy(false);
+      setCamError("other");
+      return;
     }
+    onClose(); // the shutter has fired — get out of the way immediately
+    void (async () => {
+      try {
+        const frame = await compressCanvas(canvas);
+        await onCapture(frame);
+      } catch {
+        /* the uploader surfaces a toast on failure */
+      }
+    })();
   }
 
-  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow re-selecting the same file
     if (!file) return;
-    setBusy(true);
-    try {
-      const frame = await compressFile(file);
-      await onCapture(frame);
-      onClose();
-    } catch {
-      setCamError("Couldn't process that image.");
-    } finally {
-      setBusy(false);
-    }
+    onClose();
+    void (async () => {
+      try {
+        const frame = await compressFile(file);
+        await onCapture(frame);
+      } catch {
+        /* the uploader surfaces a toast on failure */
+      }
+    })();
   }
+
+  function retry() {
+    setCamError(null);
+    setReady(false);
+    setRetryNonce((n) => n + 1);
+  }
+
+  const errorCopy = camError ? ERROR_COPY[camError] : null;
 
   return createPortal(
     <AnimatePresence>
@@ -150,6 +207,7 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
                 ref={videoRef}
                 playsInline
                 muted
+                autoPlay
                 className="h-full w-full object-cover"
                 style={{
                   display: camError ? "none" : "block",
@@ -161,9 +219,30 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
                   <IrisShutter size={72} ariaLabel="Starting camera" />
                 </div>
               )}
-              {camError && (
+              {errorCopy && (
                 <div className="absolute inset-0 grid place-items-center p-6 text-center">
-                  <p className="text-sm text-muted-foreground">{camError}</p>
+                  <div className="flex max-w-xs flex-col items-center gap-3">
+                    <ShieldAlert className="size-7 text-moment" />
+                    <p className="font-display text-base font-semibold text-foreground">
+                      {errorCopy.title}
+                    </p>
+                    <p className="text-sm text-muted-foreground">{errorCopy.body}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      {errorCopy.retry && (
+                        <Button size="sm" onClick={retry}>
+                          {camError === "denied" ? "Allow camera" : "Try again"}
+                        </Button>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileRef.current?.click()}
+                      >
+                        <ImageUp className="size-4" />
+                        Upload a photo
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
               {/* framing corners */}
@@ -184,7 +263,6 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
                 size="icon"
                 onClick={() => fileRef.current?.click()}
                 aria-label="Upload a photo instead"
-                disabled={busy}
               >
                 <ImageUp className="size-5" />
               </Button>
@@ -192,15 +270,11 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
               <button
                 type="button"
                 onClick={capture}
-                disabled={busy || !ready || !!camError}
+                disabled={!ready || !!camError}
                 aria-label="Take photo"
-                className="group relative grid size-16 place-items-center rounded-full border-4 border-foreground/80 bg-moment outline-none transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+                className="group relative grid size-16 place-items-center rounded-full border-4 border-foreground/80 bg-moment outline-none transition-transform active:scale-90 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
               >
-                {busy ? (
-                  <IrisShutter size={28} active progress={0.5} />
-                ) : (
-                  <Camera className="size-6 text-moment-foreground" />
-                )}
+                <Camera className="size-6 text-moment-foreground" />
               </button>
 
               <Button
@@ -210,7 +284,7 @@ export function CaptureSheet({ open, onClose, onCapture }: CaptureSheetProps) {
                   setFacing((f) => (f === "environment" ? "user" : "environment"))
                 }
                 aria-label="Switch camera"
-                disabled={busy || !!camError}
+                disabled={!!camError}
               >
                 <RefreshCw className="size-5" />
               </Button>

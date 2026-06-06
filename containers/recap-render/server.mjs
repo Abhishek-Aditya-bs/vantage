@@ -65,8 +65,8 @@ function readBody(req) {
 }
 
 async function render(manifest) {
-  const W = manifest.width || 1280;
-  const H = manifest.height || 720;
+  const W = manifest.width || 1080;
+  const H = manifest.height || 1920;
   const frameSec = Math.max(0.6, (manifest.msPerFrame || 1600) / 1000);
   const frames = (manifest.frames || []).slice(0, MAX_FRAMES);
   if (frames.length === 0) throw new Error("no frames");
@@ -104,14 +104,21 @@ async function render(manifest) {
   }
 }
 
-/** A Ken-Burns slide per image, chained together with crossfades. */
+/**
+ * A Ken-Burns slide per image — a blurred, darkened cover backdrop (so vertical
+ * 9:16 output is always full-bleed, never tiny) with the photo contained on top,
+ * chained together with crossfades. Mirrors the on-device client renderer.
+ */
 function buildFilter(n, W, H, frameSec) {
   const d = Math.round(frameSec * FPS); // zoompan frames per still
   const seg = [];
   for (let i = 0; i < n; i++) {
     seg.push(
-      `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,` +
-        `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,` +
+      `[${i}:v]split=2[bg${i}][fg${i}];` +
+        `[bg${i}]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},` +
+        `boxblur=24:2,eq=brightness=-0.28,setsar=1[bgb${i}];` +
+        `[fg${i}]scale=${W}:${H}:force_original_aspect_ratio=decrease,setsar=1[fgb${i}];` +
+        `[bgb${i}][fgb${i}]overlay=(W-w)/2:(H-h)/2,` +
         `zoompan=z='min(zoom+0.0009,1.10)':d=${d}:s=${W}x${H}:fps=${FPS},` +
         `format=yuv420p[v${i}]`,
     );

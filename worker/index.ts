@@ -250,7 +250,7 @@ app.post("/api/spaces/:code/recap", async (c) => {
     .sort((a, b) => a.createdAt - b.createdAt)
     .map((m) => ({ url: `${origin}/api/m/${code}/${encodeURIComponent(m.id)}`, displayName: m.displayName }));
 
-  const res = await serverRecap(c.env, { title: code, width: 1280, height: 720, msPerFrame: 1600, frames });
+  const res = await serverRecap(c.env, { title: code, width: 1080, height: 1920, msPerFrame: 2200, frames });
   if (!res.ok) return c.json({ error: "Render failed." }, 502);
   return new Response(res.body, {
     status: 200,
