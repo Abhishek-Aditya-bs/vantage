@@ -129,12 +129,14 @@ printf '%s' "$(openssl rand -hex 12)" | npx wrangler secret put ADMIN_PASSCODE  
 
 Bindings (D1 / KV / Durable Objects / AI) are declared in `wrangler.jsonc`; resources are created with `wrangler d1 create`, `wrangler kv namespace create`, etc.
 
-### Enabling admin email OTP (optional)
+### Admin email OTP (enabled on the live instance)
 Create a free [Resend](https://resend.com) account with your admin email, generate an API key, then:
 ```bash
 printf '%s' "re_xxx" | npx wrangler secret put RESEND_API_KEY
 ```
 Codes are then emailed to `ADMIN_EMAIL`; the passcode remains as a fallback.
+
+**Sender domain — no verification needed.** Mail goes out as `onboarding@resend.dev`, Resend's shared test sender, which can only deliver to the address that *owns* the Resend account. For a single-admin OTP that's exactly the recipient, so there's no domain to verify. Verify a custom domain in Resend (add its DKIM/SPF records, then swap the `from:` in `worker/email.ts`) only if you later email anyone other than the account owner — guests, invites, notifications.
 
 ## Configuration & feature flags
 
