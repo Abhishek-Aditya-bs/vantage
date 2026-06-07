@@ -33,3 +33,9 @@ dist-ssr
 
 # Local agent / editor tooling
 .claude/
+
+# Manim film toolchain (build-time only; rendered MP4 ships in public/)
+.manim-venv/
+manim/fonts/
+manim/media/
+manim/__pycache__/

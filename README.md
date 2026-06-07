@@ -90,6 +90,7 @@ R2 would be the obvious place to store photos — but enabling R2 requires a **p
 ## Tech stack
 
 **Frontend:** React 19 · Vite · TypeScript (strict) · Tailwind CSS v4 · shadcn-style primitives · `motion` · self-hosted **Geist / Geist Mono / EB Garamond** (Fontsource) · hand-authored monochrome SVG **blueprint diagrams**, a pixelated SVG-filter wordmark, and an aperture mark.
+**Landing film:** a ~54s **[Manim](https://github.com/ManimCommunity/manim)** animation (the 3Blue1Brown library) drawn in the *same* blueprint language — intro → join → live wall → the Moment → recap reel → CTA. Rendered in two cuts (dark plate + white-paper inverse), served per theme by [`FilmPlate`](src/components/landing/FilmPlate.tsx). Source + render/publish steps in [`manim/`](manim/README.md); shipping artifact is `public/vantage-film*.mp4`.
 **Edge:** Cloudflare Workers · Hono · Durable Objects (SQLite + Hibernation) · D1 · KV · Workers AI · Cron · `jose` · Drizzle ORM · Zod (shared client/worker contract).
 **Tooling:** `@cloudflare/vite-plugin` (one dev server for SPA + Worker + DOs) · Wrangler · drizzle-kit.
 

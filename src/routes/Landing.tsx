@@ -15,6 +15,7 @@ import { formatCode } from "@/lib/format";
 import { PixelHeadline } from "@/components/brand/PixelHeadline";
 import { AsciiColophon } from "@/components/brand/AsciiColophon";
 import { BlueprintFigure } from "@/components/landing/BlueprintFigure";
+import { FilmPlate } from "@/components/landing/FilmPlate";
 import { ShadeDivider } from "@/components/landing/ShadeDivider";
 import { FigSyncCapture } from "@/components/landing/figures/FigSyncCapture";
 import { FigAperture } from "@/components/landing/figures/FigAperture";
@@ -151,6 +152,26 @@ export default function Landing() {
             </motion.div>
           </Shell>
         </section>
+
+        <ShadeDivider />
+
+        {/* ============================ THE FILM ========================== */}
+        <Section>
+          <div className="grid grid-cols-1 gap-10 md:grid-cols-12 md:gap-10">
+            <motion.div {...reveal} className="md:col-span-4">
+              <Eyebrow n="00">In motion</Eyebrow>
+              <H2>Watch a room become one camera.</H2>
+              <Lede>
+                Fifty-four seconds, drawn in the same blueprint as everything below: a phone scans in,
+                the wall fills itself, every angle fires one synchronized shutter, and the night plays
+                itself back as a reel.
+              </Lede>
+            </motion.div>
+            <motion.div {...reveal} className="md:col-span-8">
+              <FilmPlate />
+            </motion.div>
+          </div>
+        </Section>
 
         <ShadeDivider />
 
